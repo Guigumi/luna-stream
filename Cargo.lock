@@ -852,6 +852,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -863,6 +864,7 @@ dependencies = [
  "gstreamer",
  "gstreamer-pbutils",
  "luna-stream-proto",
+ "luna-streamctl",
  "nix",
  "serde",
  "serde_json",

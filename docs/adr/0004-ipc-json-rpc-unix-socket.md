@@ -35,3 +35,4 @@ Adotamos **JSON-RPC 2.0 delimitado por nova linha (NDJSON)** transportado sobre 
 
 - Crate puro `luna-stream-proto` sem I/O, facilmente testável e reutilizável.
 - Clientes em qualquer linguagem (Node.js/Electron, Python, C, Go, Rust) conseguem se comunicar com o daemon abrindo um simples socket de fluxo e enviando JSON.
+
