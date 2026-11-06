@@ -55,8 +55,14 @@ docs/testing/m2-manual.md                  # checklist e validação com Discord
 
 **Interfaces:**
 - Produces:
+  - `enum SystemAudioMode { Isolated, DesktopLoopback }` (serde `snake_case`: `isolated` para apps sem voz; `desktop_loopback` para monitor geral do desktop)
   - `enum AudioTrackKind { Game, Call, Microphone }` (serde `snake_case`)
-  - `struct AudioConfig { pub game: bool, pub call: bool, pub microphone: bool }` (com `Default` onde `game=true`, `call=true`, `microphone=true`)
+  - `struct AudioConfig`:
+    - `pub mode: SystemAudioMode` (padrão: `Isolated`)
+    - `pub game: bool` (padrão: `true`)
+    - `pub call: bool` (padrão: `true`)
+    - `pub microphone: bool` (padrão: `true`)
+    - `pub mic_device: Option<String>` (nome/ID do microfone específico ou `None` para padrão do sistema)
   - `RecordStartParams` ganha campo `#[serde(default)] pub audio: AudioConfig`
 
 - [ ] **Step 1: Escrever teste falhando** em `crates/luna-stream-proto/tests/audio_proto.rs`:
@@ -180,6 +186,8 @@ docs/testing/m2-manual.md                  # checklist e validação com Discord
 **Interfaces:**
 - Produces:
   - Flags no subcomando `record`:
+    - `--audio-mode <isolated|desktop-loopback>`: seleciona se captura som isolado de apps/jogos ou monitor geral do desktop (padrão: `isolated`).
+    - `--mic-device <NAME>`: seleciona o microfone específico desejado (ou omite para o padrão do sistema).
     - `--no-audio`: desativa captura de áudio (somente vídeo).
     - `--no-mic`: desativa microfone.
     - `--no-call`: desativa áudio da call.
@@ -210,3 +218,4 @@ luna-streamctl record --seconds 10 --output /tmp/m2_audio_gate.mkv
   - Trilha 3: microfone audível.
 - [ ] **Step 4: Registrar métricas e benchmarks**.
 - [ ] **Step 5: Commit e Tag** — `docs: gate M2 verificado` ; `git tag v0.2.0` (**fim do M2**).
+
