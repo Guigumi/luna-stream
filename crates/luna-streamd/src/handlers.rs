@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::env;
 use std::os::fd::AsRawFd;
-use std::path::PathBuf;
 use tokio::sync::Mutex;
 
 use crate::encoder;
@@ -96,21 +95,39 @@ impl Handler for Daemon {
                     probed.into_iter().next().ok_or(ErrorCode::NoEncoder)?
                 };
 
-                let output_path = start_params
-                    .output
-                    .clone()
-                    .unwrap_or_else(|| PathBuf::from("output.mp4"));
+                let dump_graph =
+                    if start_params.output.is_none() && start_params.game_name.is_none() {
+                        tokio::process::Command::new("pw-dump")
+                            .output()
+                            .await
+                            .ok()
+                            .and_then(|o| String::from_utf8(o.stdout).ok())
+                            .and_then(|s| crate::audio::router::AudioGraph::from_json(&s).ok())
+                    } else {
+                        None
+                    };
+
+                let output_path = crate::naming::resolve_output_path(
+                    start_params.output.as_deref(),
+                    start_params.output_dir.as_deref(),
+                    start_params.game_name.as_deref(),
+                    start_params.format,
+                    dump_graph.as_ref(),
+                    std::process::id(),
+                )?;
 
                 match start_params.source {
                     SourceKind::Test => {
                         let mut recorder = self.recorder.lock().await;
                         recorder
-                            .start(
+                            .start_record(
                                 VideoSource::Test,
                                 &enc,
                                 start_params.fps,
+                                &start_params.video,
                                 &start_params.audio,
                                 AudioSourceKind::Test,
+                                start_params.format,
                                 output_path.clone(),
                             )
                             .await?;
@@ -124,23 +141,23 @@ impl Handler for Daemon {
                     }
                     SourceKind::Screen => {
                         let mut recorder = self.recorder.lock().await;
-                        // Valida output antes de abrir o portal
-                        crate::recorder::validate_output(&output_path)?;
 
                         let session = portal::open_screen(&self.token_store).await?;
                         let raw_fd = session.fd.as_raw_fd();
                         let node_id = session.node_id;
 
                         recorder
-                            .start(
+                            .start_record(
                                 VideoSource::PipeWire {
                                     fd: raw_fd,
                                     node_id,
                                 },
                                 &enc,
                                 start_params.fps,
+                                &start_params.video,
                                 &start_params.audio,
                                 AudioSourceKind::PipeWire,
+                                start_params.format,
                                 output_path.clone(),
                             )
                             .await?;
@@ -156,6 +173,12 @@ impl Handler for Daemon {
                             .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
                     }
                 }
+            }
+            methods::RECORD_STATUS => {
+                let recorder = self.recorder.lock().await;
+                let status = recorder.status();
+                serde_json::to_value(status)
+                    .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
             }
             methods::RECORD_STOP => {
                 let mut recorder = self.recorder.lock().await;

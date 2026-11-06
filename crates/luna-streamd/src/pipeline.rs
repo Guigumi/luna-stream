@@ -308,11 +308,13 @@ pub fn describe_record(
     let out_str = output.to_string_lossy();
     let mux_and_sink = match format {
         ContainerFormat::Mp4 => {
-            format!("mp4mux fragment-duration=1000 name=mux ! filesink location=\"{out_str}\"")
+            format!(
+                "mp4mux fragment-duration=1000 name=mux ! filesink buffer-mode=unbuffered location=\"{out_str}\""
+            )
         }
         ContainerFormat::Mkv => {
             format!(
-                "matroskamux min-cluster-duration=500000000 offset-to-zero=true name=mux ! filesink location=\"{out_str}\""
+                "matroskamux min-cluster-duration=500000000 offset-to-zero=true name=mux ! filesink buffer-mode=unbuffered location=\"{out_str}\""
             )
         }
     };

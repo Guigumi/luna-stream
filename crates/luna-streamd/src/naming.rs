@@ -147,6 +147,10 @@ pub fn resolve_output_path(
         dir.join(file_name)
     };
 
+    if final_path.exists() {
+        return Err(RpcError::from(ErrorCode::OutputExists));
+    }
+
     if let Some(parent) = final_path.parent() {
         if !parent.exists() {
             fs::create_dir_all(parent).map_err(|_| RpcError::from(ErrorCode::OutputNotWritable))?;

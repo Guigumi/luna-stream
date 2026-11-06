@@ -14,7 +14,7 @@ fn test_source_with_vaapi() {
     assert!(desc.contains("framerate=60/1"));
     assert!(desc.contains("vah264enc"));
     assert!(desc.contains("key-int-max=120"));
-    assert!(desc.ends_with(r#"filesink location="/tmp/a.mkv""#));
+    assert!(desc.ends_with(r#"filesink buffer-mode=unbuffered location="/tmp/a.mkv""#));
 }
 
 #[test]
@@ -43,5 +43,5 @@ fn path_with_spaces_quoted() {
         60,
         Path::new("/tmp/meu clipe.mkv"),
     );
-    assert!(desc.ends_with(r#"filesink location="/tmp/meu clipe.mkv""#));
+    assert!(desc.ends_with(r#"filesink buffer-mode=unbuffered location="/tmp/meu clipe.mkv""#));
 }

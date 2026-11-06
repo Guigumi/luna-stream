@@ -6,9 +6,10 @@ use std::time::{Duration, Instant};
 use tracing::{error, info};
 
 use crate::audio::router::AudioRouter;
-use crate::pipeline::{AudioSourceKind, VideoSource, describe_with_audio};
+use crate::pipeline::{AudioSourceKind, VideoSource, describe_record};
 use luna_stream_proto::{
-    AudioConfig, EncoderInfo, ErrorCode, RecordStopResult, RpcError, SystemAudioMode,
+    AudioConfig, ContainerFormat, EncoderInfo, ErrorCode, RecordStatusResult, RecordStopResult,
+    RpcError, SystemAudioMode, VideoRecordConfig,
 };
 
 pub fn validate_output(path: &Path) -> Result<(), RpcError> {
@@ -37,6 +38,8 @@ pub struct Recorder {
     start_time: Option<Instant>,
     output_path: Option<PathBuf>,
     audio_router: Option<AudioRouter>,
+    encoder: Option<String>,
+    format: Option<ContainerFormat>,
 }
 
 impl Recorder {
@@ -46,11 +49,47 @@ impl Recorder {
             start_time: None,
             output_path: None,
             audio_router: None,
+            encoder: None,
+            format: None,
         }
     }
 
     pub fn is_recording(&self) -> bool {
         self.pipeline.is_some()
+    }
+
+    pub fn status(&self) -> RecordStatusResult {
+        if !self.is_recording() {
+            return RecordStatusResult {
+                recording: false,
+                path: None,
+                duration_ms: 0,
+                bytes_written: 0,
+                encoder: None,
+                format: None,
+            };
+        }
+
+        let duration_ms = self
+            .start_time
+            .map(|t| t.elapsed().as_millis() as u64)
+            .unwrap_or(0);
+
+        let bytes_written = self
+            .output_path
+            .as_ref()
+            .and_then(|p| fs::metadata(p).ok())
+            .map(|m| m.len())
+            .unwrap_or(0);
+
+        RecordStatusResult {
+            recording: true,
+            path: self.output_path.clone(),
+            duration_ms,
+            bytes_written,
+            encoder: self.encoder.clone(),
+            format: self.format,
+        }
     }
 
     pub async fn start(
@@ -60,6 +99,32 @@ impl Recorder {
         fps: u32,
         audio: &AudioConfig,
         audio_src: AudioSourceKind,
+        output: PathBuf,
+    ) -> Result<(), RpcError> {
+        let video_cfg = VideoRecordConfig::default();
+        self.start_record(
+            src,
+            enc,
+            fps,
+            &video_cfg,
+            audio,
+            audio_src,
+            ContainerFormat::Mkv,
+            output,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn start_record(
+        &mut self,
+        src: VideoSource,
+        enc: &EncoderInfo,
+        fps: u32,
+        video: &VideoRecordConfig,
+        audio: &AudioConfig,
+        audio_src: AudioSourceKind,
+        format: ContainerFormat,
         output: PathBuf,
     ) -> Result<(), RpcError> {
         if self.is_recording() {
@@ -94,7 +159,7 @@ impl Recorder {
                 None
             };
 
-        let desc = describe_with_audio(&src, enc, fps, audio, audio_src, &output);
+        let desc = describe_record(&src, enc, fps, video, audio, audio_src, format, &output);
         info!("Iniciando pipeline de gravação: {desc}");
 
         let element = match gst::parse::launch(&desc) {
@@ -138,6 +203,8 @@ impl Recorder {
         self.pipeline = Some(pipeline);
         self.start_time = Some(Instant::now());
         self.output_path = Some(output);
+        self.encoder = Some(enc.element.clone());
+        self.format = Some(format);
 
         Ok(())
     }
@@ -146,6 +213,8 @@ impl Recorder {
         let pipeline = self.pipeline.take().ok_or(ErrorCode::NotRecording)?;
         let start_time = self.start_time.take().ok_or(ErrorCode::NotRecording)?;
         let output = self.output_path.take().ok_or(ErrorCode::NotRecording)?;
+        self.encoder = None;
+        self.format = None;
 
         // Encerra roteador de áudio e desfaz links
         if let Some(mut router) = self.audio_router.take() {
