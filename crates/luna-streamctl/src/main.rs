@@ -76,7 +76,21 @@ async fn main() {
         },
         Commands::Encoders => match call(&sock_path, "encoder.list", Value::Null).await {
             Ok(res) => {
-                println!("{}", serde_json::to_string_pretty(&res).unwrap());
+                let encoders = res["encoders"].as_array().cloned().unwrap_or_default();
+                let selected = res["selected"].as_str().unwrap_or("");
+                if encoders.is_empty() {
+                    println!("Nenhum encoder H.264 suportado foi encontrado.");
+                } else {
+                    for enc in encoders {
+                        let elem = enc["element"].as_str().unwrap_or("unknown");
+                        let kind = enc["kind"].as_str().unwrap_or("unknown");
+                        if elem == selected {
+                            println!("* {elem} ({kind})");
+                        } else {
+                            println!("  {elem} ({kind})");
+                        }
+                    }
+                }
             }
             Err(ClientError::NotRunning) => {
                 eprintln!("luna-streamd não está rodando");
