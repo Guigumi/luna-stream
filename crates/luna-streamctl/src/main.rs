@@ -1,39 +1,10 @@
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use serde_json::Value;
 use std::env;
 use std::path::PathBuf;
 
+use luna_streamctl::cli::{Cli, Commands, build_audio_config};
 use luna_streamctl::client::{ClientError, call};
-
-#[derive(Parser)]
-#[command(name = "luna-streamctl")]
-#[command(about = "Controle do daemon Luna Stream", version)]
-struct Cli {
-    #[arg(long, help = "Caminho explícito para o unix socket")]
-    socket: Option<PathBuf>,
-
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    #[command(about = "Verifica se o daemon está respondendo")]
-    Ping,
-    #[command(about = "Lista encoders de vídeo disponíveis")]
-    Encoders,
-    #[command(about = "Grava vídeo da tela ou teste")]
-    Record {
-        #[arg(long, help = "Duração da gravação em segundos")]
-        seconds: u32,
-        #[arg(long, help = "Arquivo de saída (MKV)")]
-        output: PathBuf,
-        #[arg(long, default_value = "screen", help = "Origem: screen ou test")]
-        source: String,
-        #[arg(long, default_value_t = 60, help = "Taxa de quadros por segundo")]
-        fps: u32,
-    },
-}
 
 fn resolve_socket(explicit: Option<PathBuf>) -> Result<PathBuf, String> {
     if let Some(p) = explicit {
@@ -106,11 +77,19 @@ async fn main() {
             output,
             source,
             fps,
+            audio_mode,
+            mic_device,
+            no_audio,
+            no_mic,
+            no_call,
         } => {
+            let audio_cfg = build_audio_config(&audio_mode, mic_device, no_audio, no_mic, no_call);
+
             let start_params = serde_json::json!({
                 "output": output,
                 "source": source,
-                "fps": fps
+                "fps": fps,
+                "audio": audio_cfg,
             });
 
             match call(&sock_path, "record.start", start_params).await {
