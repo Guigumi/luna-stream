@@ -18,10 +18,11 @@ tracing-subscriber.workspace = true
 ashpd.workspace = true
 gstreamer.workspace = true
 async-trait.workspace = true
+nix.workspace = true
+chrono.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-nix.workspace = true
 gstreamer-pbutils.workspace = true
 luna-streamctl = { path = "../luna-streamctl" }
 

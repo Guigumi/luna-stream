@@ -29,5 +29,6 @@ ashpd = { version = "0.10", default-features = false, features = ["tokio"] }
 gstreamer = { version = "0.23", features = ["v1_24"] }
 gstreamer-pbutils = { version = "0.23", features = ["v1_24"] }
 tempfile = "3.17"
-nix = { version = "0.29", features = ["signal"] }
+nix = { version = "0.29", features = ["signal", "fs"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 async-trait = "0.1"

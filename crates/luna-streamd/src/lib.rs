@@ -3,6 +3,7 @@
 pub mod audio;
 pub mod encoder;
 pub mod handlers;
+pub mod naming;
 pub mod pipeline;
 pub mod portal;
 pub mod recorder;
