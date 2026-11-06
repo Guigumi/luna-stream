@@ -2,7 +2,7 @@
 
 Motor nativo e leve para **transmitir, gravar e clipar** a tela, feito para as salas privadas da [Luna](https://lunagg.com.br).
 
-> **Status:** M0 (Fundação), M1 (Captura de Vídeo Linux via Portal + PipeWire + Encode GPU) e M2 (Áudio Linux multi-trilha: Jogo, Call e Microfone) **100% concluídos e testados em hardware real**. Veja o [ROADMAP](ROADMAP.md), o [Gate M1](docs/testing/m1-manual.md) e o [Gate M2](docs/testing/m2-manual.md).
+> **Status:** M0 (Fundação), M1 (Captura de Vídeo Linux), M2 (Áudio Linux multi-trilha) e M3 (Gravação Longa e Fragmentada Anti-Crash com Layout OBS) **100% concluídos e testados em hardware real**. Veja o [ROADMAP](ROADMAP.md), o [Gate M1](docs/testing/m1-manual.md), o [Gate M2](docs/testing/m2-manual.md) e o [Gate M3](docs/testing/m3-manual.md).
 
 ## Como Testar
 
@@ -21,10 +21,24 @@ cargo run -p luna-streamctl -- ping
 # 4. Listar encoders detectados na GPU
 cargo run -p luna-streamctl -- encoders
 
-# 5. Gravar 10 segundos da tela com áudio isolado de jogo, call e mic (1080p60 em MKV via GPU)
-cargo run -p luna-streamctl -- record --seconds 10 --output ~/Vídeos/teste_tela.mkv
+# 5. Iniciar gravação anti-crash contínua (fMP4 com Trilha 1 Master Mix + faixas isoladas OBS)
+cargo run -p luna-streamctl -- record start --format mp4 --quality high
 
-# Flags de áudio disponíveis:
+# 6. Consultar status em tempo real (tempo, MB gravados e encoder ativo)
+cargo run -p luna-streamctl -- record status
+
+# 7. Finalizar a gravação
+cargo run -p luna-streamctl -- record stop
+
+# Flags de gravação disponíveis (start):
+# --format <mp4|mkv>                      (padrão: mp4 fragmentado anti-crash)
+# --quality <ultra|high|medium|low>       (padrão: high via CQP por hardware)
+# --bitrate-kbps <N>                      (bitrate de vídeo explícito)
+# --width <W> --height <H>                (redimensionamento via GPU)
+# --fps <N>                               (taxa de quadros, padrão: 60)
+# --dir <DIR>                             (pasta de saída, padrão: $XDG_VIDEOS_DIR/Luna)
+# --game-name <NOME>                      (força nome do jogo no arquivo)
+# --no-separate-tracks                    (grava somente a Faixa 1 Mix)
 # --audio-mode <isolated|desktop-loopback> (padrão: isolated)
 # --mic-device <NOME>                     (seleciona microfone específico)
 # --no-audio                              (desativa todo o áudio)

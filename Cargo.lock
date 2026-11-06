@@ -900,7 +900,7 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "luna-stream-proto"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -909,7 +909,7 @@ dependencies = [
 
 [[package]]
 name = "luna-streamctl"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "clap",
  "luna-stream-proto",
@@ -923,7 +923,7 @@ dependencies = [
 
 [[package]]
 name = "luna-streamd"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ashpd",
  "async-trait",

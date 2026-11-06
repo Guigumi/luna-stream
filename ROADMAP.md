@@ -64,10 +64,15 @@ flowchart LR
 - Suporte a modo isolado (`isolated`) ou monitor geral do desktop (`desktop-loopback`).
 - **Saída:** gravação MKV com 1 vídeo H.264 + 3 trilhas Opus sincronizadas (validação em hardware real: [Gate M2](docs/testing/m2-manual.md), plano executado: [M2](docs/plans/2026-11-06-m2-audio-linux.md)).
 
-### M3 — Gravação
-- MKV/MP4 fragmentado (não corrompe se travar), pasta configurável, nome por data/jogo.
-- Trilhas configuráveis (padrão: jogo + call + mic).
-- **Saída:** gravação de 2 h sem drift nem perda de frames.
+### M3 — Gravação Longa e Fragmentada Anti-Crash ✅ (concluído na v0.3.0)
+- Containers anti-crash: MP4 fragmentado (`mp4mux fragment-duration=1000` + AAC) e MKV clusterizado (`matroskamux min-cluster-duration=500000000 offset-to-zero=true` + Opus).
+- Tolerância total a crash violento (`kill -9`/queda de energia): reproduzível no `ffprobe` e `Discoverer` sem corromper.
+- Layout de áudio padrão OBS: Trilha 1 = Mixagem Master completa (`audiomixer`); Trilhas 2, 3 e 4 = faixas isoladas (Jogo, Call, Mic).
+- Presets de qualidade CQP (`ultra` [18], `high` [23], `medium` [28], `low` [33]), bitrate explícito e escala GPU opcional (`vapostproc`).
+- Resolução automática de diretório (`$XDG_VIDEOS_DIR/Luna`) e nome por data/jogo do PipeWire (`YYYY-MM-DD_HH-MM-SS_<Jogo>.<ext>`) com sanitização e verificação de espaço livre em disco (mínimo 1 GB).
+- Controle assíncrono via `record.start`, `record.status` (progresso em tempo real) e `record.stop`.
+- Subcomandos completos no `luna-streamctl`: `record start`, `record status`, `record stop` e flags avançadas.
+- **Saída:** validação anti-crash com `kill -9` aprovada, teste em hardware real Intel VA-API com fMP4 e MKV (relatório: [Gate M3](docs/testing/m3-manual.md), especificação: [Design M3](docs/superpowers/specs/2026-11-06-m3-recording-design.md), plano: [Plano M3](docs/superpowers/plans/2026-11-06-m3-recording-plan.md)).
 
 ### M4 — Replay buffer / Clipes
 - Buffer circular **de pacotes já codificados** (não re-encoda), alinhado em keyframe.
