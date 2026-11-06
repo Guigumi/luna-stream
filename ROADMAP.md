@@ -56,11 +56,13 @@ flowchart LR
 - Detecção de GPU/encoder: VAAPI (`vah264enc`/`vaapih264enc`), NVENC (`nvh264enc`), fallback software (`openh264enc`/`x264enc`).
 - **Saída:** `luna-streamctl record --seconds 10` gera vídeo 1080p60 fluido (validação em hardware real: [Gate M1](docs/testing/m1-manual.md)).
 
-### M2 — Áudio Linux
-- Roteamento nativo no PipeWire (sem processos externos em loop).
-- Três fontes: **jogo** (todas as saídas exceto voz), **call** (Discord/Vesktop/etc.), **mic**.
-- Trilhas separadas, sincronia A/V, troca de dispositivo a quente.
-- **Saída:** gravação MKV com 3 trilhas sincronizadas.
+### M2 — Áudio Linux ✅ (concluído na v0.2.0)
+- Roteamento nativo no PipeWire e virtual null-sinks sem processos externos em loop.
+- Três fontes independentes: **jogo** (todas as saídas de apps/jogos exceto voz), **call** (Discord/Vesktop/WebRTC VoiceEngine), **mic** (dispositivo físico ou padrão).
+- Trilhas separadas codificadas em Opus 48kHz, sincronia A/V com do-timestamp e queues dedicadas.
+- Sincronização e detecção dinâmica de novos jogos/apps em segundo plano via `audio::router`.
+- Suporte a modo isolado (`isolated`) ou monitor geral do desktop (`desktop-loopback`).
+- **Saída:** gravação MKV com 1 vídeo H.264 + 3 trilhas Opus sincronizadas (validação em hardware real: [Gate M2](docs/testing/m2-manual.md), plano executado: [M2](docs/plans/2026-11-06-m2-audio-linux.md)).
 
 ### M3 — Gravação
 - MKV/MP4 fragmentado (não corrompe se travar), pasta configurável, nome por data/jogo.

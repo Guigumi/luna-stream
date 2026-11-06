@@ -2,7 +2,7 @@
 
 Motor nativo e leve para **transmitir, gravar e clipar** a tela, feito para as salas privadas da [Luna](https://lunagg.com.br).
 
-> **Status:** M0 (Fundação) e M1 (Captura de Vídeo Linux via Portal + PipeWire + Encode GPU) **100% concluídos e testados em hardware real**. Veja o [ROADMAP](ROADMAP.md) e o [Gate M1](docs/testing/m1-manual.md).
+> **Status:** M0 (Fundação), M1 (Captura de Vídeo Linux via Portal + PipeWire + Encode GPU) e M2 (Áudio Linux multi-trilha: Jogo, Call e Microfone) **100% concluídos e testados em hardware real**. Veja o [ROADMAP](ROADMAP.md), o [Gate M1](docs/testing/m1-manual.md) e o [Gate M2](docs/testing/m2-manual.md).
 
 ## Como Testar
 
@@ -21,8 +21,15 @@ cargo run -p luna-streamctl -- ping
 # 4. Listar encoders detectados na GPU
 cargo run -p luna-streamctl -- encoders
 
-# 5. Gravar 5 segundos da tela (1080p60 em MKV via GPU)
-cargo run -p luna-streamctl -- record --seconds 5 --output ~/Vídeos/teste_tela.mkv
+# 5. Gravar 10 segundos da tela com áudio isolado de jogo, call e mic (1080p60 em MKV via GPU)
+cargo run -p luna-streamctl -- record --seconds 10 --output ~/Vídeos/teste_tela.mkv
+
+# Flags de áudio disponíveis:
+# --audio-mode <isolated|desktop-loopback> (padrão: isolated)
+# --mic-device <NOME>                     (seleciona microfone específico)
+# --no-audio                              (desativa todo o áudio)
+# --no-call                               (desativa áudio do Discord/voz)
+# --no-mic                                (desativa microfone)
 ```
 
 ## A ideia

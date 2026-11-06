@@ -361,6 +361,35 @@ fn port_name_channel(name: Option<&str>) -> Option<&str> {
     }
 }
 
+fn load_null_sink(name: &str, desc: &str) -> Option<u32> {
+    let out = Command::new("pactl")
+        .args([
+            "load-module",
+            "module-null-sink",
+            &format!("sink_name={name}"),
+            &format!("sink_properties=device.description={desc}"),
+        ])
+        .output()
+        .ok()?;
+
+    if out.status.success() {
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let id = s.parse::<u32>().ok();
+        info!("Módulo pactl null-sink '{name}' carregado (ID: {id:?})");
+        id
+    } else {
+        warn!("Falha ao carregar pactl module-null-sink para '{name}'");
+        None
+    }
+}
+
+fn unload_null_sink(id: u32) {
+    info!("Descarregando módulo pactl null-sink ID: {id}");
+    let _ = Command::new("pactl")
+        .args(["unload-module", &id.to_string()])
+        .status();
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SyncStats {
     pub linked: usize,
@@ -372,6 +401,8 @@ pub struct SyncStats {
 pub struct AudioRouter {
     game_target: Option<String>,
     call_target: Option<String>,
+    game_module: Option<u32>,
+    call_module: Option<u32>,
     own_pid: u32,
     created_links: Arc<Mutex<HashSet<(u32, u32)>>>,
     stop_tx: Option<tokio::sync::oneshot::Sender<()>>,
@@ -380,9 +411,23 @@ pub struct AudioRouter {
 
 impl AudioRouter {
     pub fn new(game_target: Option<String>, call_target: Option<String>) -> Self {
+        let game_module = if game_target.as_deref() == Some("luna_game") {
+            load_null_sink("luna_game", "LunaGameAudio")
+        } else {
+            None
+        };
+
+        let call_module = if call_target.as_deref() == Some("luna_call") {
+            load_null_sink("luna_call", "LunaCallAudio")
+        } else {
+            None
+        };
+
         Self {
             game_target,
             call_target,
+            game_module,
+            call_module,
             own_pid: std::process::id(),
             created_links: Arc::new(Mutex::new(HashSet::new())),
             stop_tx: None,
@@ -540,6 +585,16 @@ impl AudioRouter {
         }
 
         self.clean_links();
+        self.clean_modules();
+    }
+
+    fn clean_modules(&mut self) {
+        if let Some(id) = self.game_module.take() {
+            unload_null_sink(id);
+        }
+        if let Some(id) = self.call_module.take() {
+            unload_null_sink(id);
+        }
     }
 
     fn clean_links(&self) {
@@ -557,5 +612,6 @@ impl AudioRouter {
 impl Drop for AudioRouter {
     fn drop(&mut self) {
         self.clean_links();
+        self.clean_modules();
     }
 }

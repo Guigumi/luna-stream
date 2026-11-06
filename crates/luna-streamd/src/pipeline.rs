@@ -85,19 +85,17 @@ pub fn describe_with_audio(
         let game_src = match audio_src {
             AudioSourceKind::Test => "audiotestsrc is-live=true freq=440".to_string(),
             AudioSourceKind::Silence => "audiotestsrc is-live=true wave=silence".to_string(),
-            AudioSourceKind::PipeWire => {
-                let autoconnect = if audio.mode == SystemAudioMode::DesktopLoopback {
-                    "true"
-                } else {
-                    "false"
-                };
-                format!(
-                    r#"pipewiresrc client-name="luna-audio-game" stream-properties="props,media.role=Communication,node.name=luna-audio-game" autoconnect={autoconnect} do-timestamp=true"#
-                )
-            }
+            AudioSourceKind::PipeWire => match audio.mode {
+                SystemAudioMode::DesktopLoopback => {
+                    r#"pulsesrc client-name="luna-audio-game" do-timestamp=true"#.to_string()
+                }
+                SystemAudioMode::Isolated => {
+                    r#"pulsesrc client-name="luna-audio-game" device="luna_game.monitor" do-timestamp=true"#.to_string()
+                }
+            },
         };
         parts.push(format!(
-            "{game_src} ! audioconvert ! audioresample ! opusenc bitrate=128000 ! queue max-size-time=1000000000 max-size-buffers=0 max-size-bytes=0 ! mux."
+            "{game_src} ! audioconvert ! audioresample ! audio/x-raw,channels=2 ! opusenc bitrate=128000 ! queue max-size-time=1000000000 max-size-buffers=0 max-size-bytes=0 ! mux."
         ));
     }
 
@@ -107,11 +105,11 @@ pub fn describe_with_audio(
             AudioSourceKind::Test => "audiotestsrc is-live=true freq=880".to_string(),
             AudioSourceKind::Silence => "audiotestsrc is-live=true wave=silence".to_string(),
             AudioSourceKind::PipeWire => {
-                r#"pipewiresrc client-name="luna-audio-call" stream-properties="props,media.role=Communication,node.name=luna-audio-call" autoconnect=false do-timestamp=true"#.to_string()
+                r#"pulsesrc client-name="luna-audio-call" device="luna_call.monitor" do-timestamp=true"#.to_string()
             }
         };
         parts.push(format!(
-            "{call_src} ! audioconvert ! audioresample ! opusenc bitrate=128000 ! queue max-size-time=1000000000 max-size-buffers=0 max-size-bytes=0 ! mux."
+            "{call_src} ! audioconvert ! audioresample ! audio/x-raw,channels=2 ! opusenc bitrate=128000 ! queue max-size-time=1000000000 max-size-buffers=0 max-size-bytes=0 ! mux."
         ));
     }
 
@@ -121,13 +119,13 @@ pub fn describe_with_audio(
             AudioSourceKind::Test => "audiotestsrc is-live=true freq=1320".to_string(),
             AudioSourceKind::Silence => "audiotestsrc is-live=true wave=silence".to_string(),
             AudioSourceKind::PipeWire => {
-                let target = audio
-                    .mic_device
-                    .as_deref()
-                    .unwrap_or("@DEFAULT_AUDIO_SOURCE@");
-                format!(
-                    r#"pipewiresrc client-name="luna-audio-mic" target-object="{target}" autoconnect=true do-timestamp=true"#
-                )
+                if let Some(dev) = audio.mic_device.as_deref() {
+                    format!(
+                        r#"pulsesrc client-name="luna-audio-mic" device="{dev}" do-timestamp=true"#
+                    )
+                } else {
+                    r#"pulsesrc client-name="luna-audio-mic" do-timestamp=true"#.to_string()
+                }
             }
         };
         parts.push(format!(

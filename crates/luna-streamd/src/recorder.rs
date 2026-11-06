@@ -7,7 +7,9 @@ use tracing::{error, info};
 
 use crate::audio::router::AudioRouter;
 use crate::pipeline::{AudioSourceKind, VideoSource, describe_with_audio};
-use luna_stream_proto::{AudioConfig, EncoderInfo, ErrorCode, RecordStopResult, RpcError};
+use luna_stream_proto::{
+    AudioConfig, EncoderInfo, ErrorCode, RecordStopResult, RpcError, SystemAudioMode,
+};
 
 pub fn validate_output(path: &Path) -> Result<(), RpcError> {
     if path.exists() {
@@ -66,54 +68,73 @@ impl Recorder {
 
         validate_output(&output)?;
 
+        // Inicializa AudioRouter antes de iniciar o pipeline (para instanciar os virtual sinks se necessário)
+        let audio_router =
+            if audio_src == AudioSourceKind::PipeWire && audio.mode == SystemAudioMode::Isolated {
+                let game_target = if audio.game {
+                    Some("luna_game".to_string())
+                } else {
+                    None
+                };
+                let call_target = if audio.call {
+                    Some("luna_call".to_string())
+                } else {
+                    None
+                };
+
+                if game_target.is_some() || call_target.is_some() {
+                    let mut router = AudioRouter::new(game_target, call_target);
+                    let _ = router.sync().await;
+                    router.start_periodic_sync(Duration::from_secs(2));
+                    Some(router)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
         let desc = describe_with_audio(&src, enc, fps, audio, audio_src, &output);
         info!("Iniciando pipeline de gravação: {desc}");
 
-        let element = gst::parse::launch(&desc).map_err(|e| {
-            error!("Falha ao compilar pipeline GStreamer: {e}");
-            RpcError::with_data(
-                ErrorCode::PipelineFailed as i32,
-                ErrorCode::PipelineFailed.message(),
-                serde_json::json!({ "error": e.to_string(), "pipeline": desc }),
-            )
-        })?;
+        let element = match gst::parse::launch(&desc) {
+            Ok(elem) => elem,
+            Err(e) => {
+                error!("Falha ao compilar pipeline GStreamer: {e}");
+                if let Some(mut r) = audio_router {
+                    r.stop().await;
+                }
+                return Err(RpcError::with_data(
+                    ErrorCode::PipelineFailed as i32,
+                    ErrorCode::PipelineFailed.message(),
+                    serde_json::json!({ "error": e.to_string(), "pipeline": desc }),
+                ));
+            }
+        };
 
-        let pipeline = element
-            .dynamic_cast::<gst::Pipeline>()
-            .map_err(|_| RpcError::from(ErrorCode::PipelineFailed))?;
+        let pipeline = match element.dynamic_cast::<gst::Pipeline>() {
+            Ok(p) => p,
+            Err(_) => {
+                if let Some(mut r) = audio_router {
+                    r.stop().await;
+                }
+                return Err(RpcError::from(ErrorCode::PipelineFailed));
+            }
+        };
 
-        pipeline.set_state(gst::State::Playing).map_err(|e| {
+        if let Err(e) = pipeline.set_state(gst::State::Playing) {
             error!("Falha ao iniciar reprodução do pipeline: {:?}", e);
-            RpcError::with_data(
+            if let Some(mut r) = audio_router {
+                r.stop().await;
+            }
+            return Err(RpcError::with_data(
                 ErrorCode::PipelineFailed as i32,
                 ErrorCode::PipelineFailed.message(),
                 serde_json::json!({ "error": format!("{e:?}") }),
-            )
-        })?;
-
-        // Inicializa AudioRouter quando capturando do PipeWire
-        if audio_src == AudioSourceKind::PipeWire {
-            let game_target = if audio.game {
-                Some("luna-audio-game".to_string())
-            } else {
-                None
-            };
-            let call_target = if audio.call {
-                Some("luna-audio-call".to_string())
-            } else {
-                None
-            };
-
-            if game_target.is_some() || call_target.is_some() {
-                let mut router = AudioRouter::new(game_target, call_target);
-                // Executa sincronização inicial
-                let _ = router.sync().await;
-                // Inicia sincronização periódica a cada 2 segundos para novos apps/jogos
-                router.start_periodic_sync(Duration::from_secs(2));
-                self.audio_router = Some(router);
-            }
+            ));
         }
 
+        self.audio_router = audio_router;
         self.pipeline = Some(pipeline);
         self.start_time = Some(Instant::now());
         self.output_path = Some(output);

@@ -76,4 +76,3 @@ pub fn build_audio_config(
         mic_device,
     }
 }
-
