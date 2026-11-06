@@ -58,7 +58,7 @@ flowchart LR
 - **Saída:** `luna-streamctl record --seconds 10` gera vídeo fluido 60 fps.
 
 ### M2 — Áudio Linux
-- Port da lógica do `pipewire-router.cjs` para Rust (`pipewire-rs`).
+- Roteamento nativo no PipeWire (sem processos externos em loop).
 - Três fontes: **jogo** (todas as saídas exceto voz), **call** (Discord/Vesktop/etc.), **mic**.
 - Trilhas separadas, sincronia A/V, troca de dispositivo a quente.
 - **Saída:** gravação MKV com 3 trilhas sincronizadas.
@@ -84,16 +84,16 @@ flowchart LR
 - Motor publica no LiveKit (SDK Rust ou `livekitwebrtcsink` — decidir por ADR após benchmark).
 - Simulcast + parar encode de camadas sem viewers (equivalente ao dynacast).
 - **Mesmo encode** alimenta stream, buffer e gravação; stream só com a trilha **jogo**.
-- Login do app: deep link `luna://` com código de uso único → token de sessão do app → credencial LiveKit pela API (reaproveitar os endpoints que o Electron já usa; ver [baseline](docs/plans/2026-11-05-baseline-electron.md)).
-- **E2EE do LiveKit** quando a sala exigir (`encryptionRequired`), compatível com o site.
-- Token de sessão guardado no keyring do sistema.
+- Login pelo navegador + código de conexão alternativo (mesma experiência do app atual; ver [ideias herdadas](docs/plans/2026-11-05-ideias-electron.md)).
+- **Criptografia de ponta a ponta (E2EE)** quando a sala exigir, compatível com o site.
+- Sessão guardada no cofre de senhas do sistema.
 - **Saída:** transmitir + clipar com um único encode; Electron não captura mais nada.
 
 ### M7 — UI leve e visualizador sob demanda
 - App de bandeja nativo (GTK4 / Slint / egui — ADR) substituindo o Electron no dia a dia.
 - Visualizador abre só ao assistir alguém: assinatura manual, decode GPU; ao fechar, libera tudo.
-- Electron vira opcional/legado **só depois** de cobrir todos os itens "obrigatório" do [baseline do Electron](docs/plans/2026-11-05-baseline-electron.md).
-- `autoSubscribe: false`; miniaturas sem decodificar o stream completo.
+- Electron vira opcional/legado **só depois** de cobrir as [ideias herdadas do app atual](docs/plans/2026-11-05-ideias-electron.md).
+- Prévia leve na grade; vídeo completo assinado só ao abrir o palco.
 - **Saída:** metas da tabela "Visão final" atingidas e medidas.
 
 ### M8 — Gate Linux ("100% e rodando muito bem")

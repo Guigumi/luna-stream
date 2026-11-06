@@ -4,7 +4,7 @@ Cada marco do [ROADMAP](../../ROADMAP.md) ganha um plano próprio, escrito **per
 
 | Plano | Marco | Status |
 |---|---|---|
-| [Baseline do Electron](2026-11-05-baseline-electron.md) | referência para M2, M5, M6 e M7 | pronto |
+| [Ideias herdadas do Electron](2026-11-05-ideias-electron.md) | referência para M2, M5, M6 e M7 | pronto |
 | [Fundação + captura de vídeo](2026-11-05-m0-m1-fundacao-captura.md) | M0 + M1 | pronto, aguardando execução |
 | Áudio Linux (jogo / call / mic) | M2 | a escrever |
 | Gravação + replay buffer | M3 + M4 | a escrever |

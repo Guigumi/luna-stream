@@ -53,3 +53,4 @@
 - **Clipe instantâneo** dos últimos segundos com uma tecla, **com** a voz da call e o microfone.
 - **Gravação** de sessões inteiras.
 - **App que quase não pesa** parado na bandeja.
+
