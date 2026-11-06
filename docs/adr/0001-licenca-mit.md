@@ -17,3 +17,4 @@ O motor será público, mas precisa ser usado por produtos fechados da Luna (bot
 
 - O motor pode ser embutido no share-client e em outros produtos fechados.
 - Qualquer componente GPL futuro precisa ficar num repositório separado e ser usado só como processo externo.
+

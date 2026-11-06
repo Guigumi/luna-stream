@@ -44,3 +44,4 @@ O desenho conceitual se inspira no [gpu-screen-recorder](https://git.dec05eba.co
 ## Licença
 
 [MIT](LICENSE)
+

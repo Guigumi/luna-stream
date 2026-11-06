@@ -84,13 +84,16 @@ flowchart LR
 - Motor publica no LiveKit (SDK Rust ou `livekitwebrtcsink` — decidir por ADR após benchmark).
 - Simulcast + parar encode de camadas sem viewers (equivalente ao dynacast).
 - **Mesmo encode** alimenta stream, buffer e gravação; stream só com a trilha **jogo**.
-- Login do app: deep link `luna://` com código de uso único → token de sessão do app → credencial LiveKit pela API.
+- Login do app: deep link `luna://` com código de uso único → token de sessão do app → credencial LiveKit pela API (reaproveitar os endpoints que o Electron já usa; ver [baseline](docs/plans/2026-11-05-baseline-electron.md)).
+- **E2EE do LiveKit** quando a sala exigir (`encryptionRequired`), compatível com o site.
+- Token de sessão guardado no keyring do sistema.
 - **Saída:** transmitir + clipar com um único encode; Electron não captura mais nada.
 
 ### M7 — UI leve e visualizador sob demanda
 - App de bandeja nativo (GTK4 / Slint / egui — ADR) substituindo o Electron no dia a dia.
 - Visualizador abre só ao assistir alguém: assinatura manual, decode GPU; ao fechar, libera tudo.
-- Electron vira opcional/legado.
+- Electron vira opcional/legado **só depois** de cobrir todos os itens "obrigatório" do [baseline do Electron](docs/plans/2026-11-05-baseline-electron.md).
+- `autoSubscribe: false`; miniaturas sem decodificar o stream completo.
 - **Saída:** metas da tabela "Visão final" atingidas e medidas.
 
 ### M8 — Gate Linux ("100% e rodando muito bem")
@@ -123,6 +126,6 @@ flowchart LR
 | ID | Decisão | Quando |
 |---|---|---|
 | ADR-1 | Licença do repo — **MIT (aceita)** | M0 |
-| ADR-2 | SDK Rust LiveKit vs `livekitwebrtcsink` | antes de M6 |
+| ADR-2 | SDK Rust LiveKit vs `livekitwebrtcsink` (critério obrigatório: E2EE) | antes de M6 |
 | ADR-3 | Toolkit da UI nativa | antes de M7 |
 | ADR-4 | Contrato IPC (JSON-RPC sobre unix socket) | M0 |
