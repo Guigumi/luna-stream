@@ -2,7 +2,28 @@
 
 Motor nativo e leve para **transmitir, gravar e clipar** a tela, feito para as salas privadas da [Luna](https://lunagg.com.br).
 
-> **Status:** planejamento. Ainda não há código; veja o [ROADMAP](ROADMAP.md).
+> **Status:** M0 (Fundação) e M1 (Captura de Vídeo Linux via Portal + PipeWire + Encode GPU) **100% concluídos e testados em hardware real**. Veja o [ROADMAP](ROADMAP.md) e o [Gate M1](docs/testing/m1-manual.md).
+
+## Como Testar
+
+Instale os pré-requisitos listados em [docs/dev-setup.md](docs/dev-setup.md), depois:
+
+```bash
+# 1. Compilar todo o workspace
+cargo build --workspace
+
+# 2. Iniciar o daemon em segundo plano
+cargo run -p luna-streamd &
+
+# 3. Testar a conexão IPC
+cargo run -p luna-streamctl -- ping
+
+# 4. Listar encoders detectados na GPU
+cargo run -p luna-streamctl -- encoders
+
+# 5. Gravar 5 segundos da tela (1080p60 em MKV via GPU)
+cargo run -p luna-streamctl -- record --seconds 5 --output ~/Vídeos/teste_tela.mkv
+```
 
 ## A ideia
 

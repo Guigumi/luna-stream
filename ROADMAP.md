@@ -44,18 +44,17 @@ flowchart LR
 
 ## Marcos
 
-### M0 — Fundação do repositório
-- Repo público `luna-stream`, licença, README com a ideia, este roadmap, ADRs.
+### M0 — Fundação do repositório ✅ (concluído na v0.0.1)
+- Repo público `luna-stream`, licença MIT, README com a ideia, este roadmap, ADRs.
 - Workspace Rust: `luna-streamd` (motor), `luna-stream-proto` (contrato IPC), `luna-streamctl` (CLI de teste).
 - CI (build, clippy, testes), releases versionadas.
-- **Saída:** `luna-streamctl ping` responde ao motor.
+- **Saída:** `luna-streamctl ping` responde ao motor (plano executado: [M0 + M1](docs/plans/2026-11-05-m0-m1-fundacao-captura.md)).
 
-### M1 — Captura de vídeo Linux
+### M1 — Captura de vídeo Linux ✅ (concluído na v0.1.0)
 - `xdg-desktop-portal` ScreenCast com **restore token** (pede permissão uma vez).
-- PipeWire com DMA-BUF; fallback para memória comum; X11 como fallback secundário.
-- Detecção de GPU/encoder: VAAPI (AMD/Intel), NVENC (NVIDIA), fallback x264.
-- H.264 primeiro; HEVC/AV1 opcionais por detecção.
-- **Saída:** `luna-streamctl record --seconds 10` gera vídeo fluido 60 fps.
+- PipeWire com stream fd nativo.
+- Detecção de GPU/encoder: VAAPI (`vah264enc`/`vaapih264enc`), NVENC (`nvh264enc`), fallback software (`openh264enc`/`x264enc`).
+- **Saída:** `luna-streamctl record --seconds 10` gera vídeo 1080p60 fluido (validação em hardware real: [Gate M1](docs/testing/m1-manual.md)).
 
 ### M2 — Áudio Linux
 - Roteamento nativo no PipeWire (sem processos externos em loop).
