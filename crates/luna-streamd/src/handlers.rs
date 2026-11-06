@@ -1,11 +1,14 @@
 use async_trait::async_trait;
 use serde_json::Value;
 use std::env;
+use std::os::fd::AsRawFd;
 use tokio::sync::Mutex;
 
 use crate::encoder;
 use crate::pipeline::VideoSource;
+use crate::portal::{self, PortalSession};
 use crate::recorder::Recorder;
+use crate::token_store::TokenStore;
 use luna_stream_proto::{
     EncoderListResult, ErrorCode, PROTOCOL_VERSION, PingResult, RecordStartParams,
     RecordStartResult, RpcError, SourceKind, methods,
@@ -18,13 +21,18 @@ pub trait Handler: Send + Sync {
 
 pub struct Daemon {
     recorder: Mutex<Recorder>,
+    portal_session: Mutex<Option<PortalSession>>,
+    token_store: TokenStore,
 }
 
 impl Daemon {
     pub fn new() -> Self {
         let _ = gstreamer::init();
+        let token_dir = TokenStore::default_dir();
         Self {
             recorder: Mutex::new(Recorder::new()),
+            portal_session: Mutex::new(None),
+            token_store: TokenStore::new(token_dir),
         }
     }
 }
@@ -95,15 +103,39 @@ impl Handler for Daemon {
                         serde_json::to_value(res)
                             .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
                     }
-                    SourceKind::Screen => Err(RpcError::new(
-                        ErrorCode::Internal as i32,
-                        "portal ainda não implementado",
-                    )),
+                    SourceKind::Screen => {
+                        let mut recorder = self.recorder.lock().await;
+                        // Valida output antes de abrir o portal
+                        crate::recorder::validate_output(&start_params.output)?;
+
+                        let session = portal::open_screen(&self.token_store).await?;
+                        let raw_fd = session.fd.as_raw_fd();
+                        let node_id = session.node_id;
+
+                        recorder.start(
+                            VideoSource::PipeWire {
+                                fd: raw_fd,
+                                node_id,
+                            },
+                            &enc,
+                            start_params.fps,
+                            start_params.output,
+                        )?;
+
+                        *self.portal_session.lock().await = Some(session);
+
+                        let res = RecordStartResult {
+                            encoder: enc.element,
+                        };
+                        serde_json::to_value(res)
+                            .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
+                    }
                 }
             }
             methods::RECORD_STOP => {
                 let mut recorder = self.recorder.lock().await;
                 let res = recorder.stop()?;
+                self.portal_session.lock().await.take();
                 serde_json::to_value(res)
                     .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
             }
