@@ -14,9 +14,8 @@
 ## Transmitir
 
 - **Escolher o que mostrar**: tela inteira ou uma janela, com prévia.
-- **Qualidade simples**: escolher resolução (360p a 1080p) e 30/60 fps, e **trocar ao vivo** sem derrubar a transmissão.
+- **Qualidade simples**: escolher resolução (360p a 1080p) e 30/60 fps, e **trocar configs** sem derrubar a transmissão.
 - **Fluidez antes de nitidez**: jogo precisa parecer liso, mesmo que perca um pouco de detalhe.
-- **Adaptar a quem assiste**: cada pessoa recebe a qualidade que a conexão dela aguenta.
 - **Câmera** opcional junto com a tela.
 
 ## Áudio
