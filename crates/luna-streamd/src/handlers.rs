@@ -35,6 +35,13 @@ impl Daemon {
             token_store: TokenStore::new(token_dir),
         }
     }
+
+    pub async fn shutdown(&self) -> Option<luna_stream_proto::RecordStopResult> {
+        let mut recorder = self.recorder.lock().await;
+        let res = recorder.stop().ok();
+        self.portal_session.lock().await.take();
+        res
+    }
 }
 
 impl Default for Daemon {

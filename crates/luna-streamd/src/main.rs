@@ -1,5 +1,6 @@
 use std::env;
 use std::sync::Arc;
+use tokio::signal::unix::{SignalKind, signal};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
@@ -35,16 +36,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let handler = Arc::new(Daemon::new());
+    let handler_dyn: Arc<dyn luna_streamd::handlers::Handler> =
+        Arc::clone(&handler) as Arc<dyn luna_streamd::handlers::Handler>;
     let shutdown = CancellationToken::new();
 
     let shutdown_clone = shutdown.clone();
     tokio::spawn(async move {
-        tokio::signal::ctrl_c().await.ok();
-        info!("Sinal recebido, encerrando daemon...");
+        let mut sigterm =
+            signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
+        let mut sigint =
+            signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
+
+        tokio::select! {
+            _ = sigterm.recv() => {
+                info!("Sinal SIGTERM recebido, iniciando encerramento gracioso...");
+            }
+            _ = sigint.recv() => {
+                info!("Sinal SIGINT (Ctrl+C) recebido, iniciando encerramento gracioso...");
+            }
+        }
         shutdown_clone.cancel();
     });
 
-    serve(listener, handler, shutdown).await?;
+    serve(listener, handler_dyn, shutdown).await?;
+
+    if let Some(res) = handler.shutdown().await {
+        info!(
+            "Gravação ativa finalizada com sucesso no encerramento: {} ({}ms)",
+            res.path.display(),
+            res.duration_ms
+        );
+    }
+
     let _ = std::fs::remove_file(&path);
     info!("luna-streamd finalizado com sucesso.");
     Ok(())

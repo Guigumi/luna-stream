@@ -23,4 +23,5 @@ async-trait.workspace = true
 tempfile.workspace = true
 nix.workspace = true
 gstreamer-pbutils.workspace = true
+luna-streamctl = { path = "../luna-streamctl" }
 
