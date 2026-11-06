@@ -67,3 +67,4 @@
 3. **Polling de 3,5 s** na sala de voz. Avaliar push (WebSocket/SSE) no M6.
 4. **E2EE fora do desktop.** O site usa `ExternalE2EEKeyProvider` quando a sala tem chave, e a credencial do desktop traz `encryptionRequired`, mas o Electron não ativa E2EE. **O motor nativo precisa suportar E2EE do LiveKit**, o que pesa na escolha do ADR-0002 (o SDK Rust tem suporte; `livekitwebrtcsink` precisa ser verificado).
 5. **Processos externos para áudio** (`pw-dump`/`pw-link` a cada 2 s). Substituir por eventos do PipeWire (registry listener), sem polling.
+

@@ -13,3 +13,4 @@ Cada marco do [ROADMAP](../../ROADMAP.md) ganha um plano próprio, escrito **per
 | UI de bandeja + visualizador | M7 | a escrever (depende do ADR-0003) |
 | Gate Linux + empacotamento | M8 | a escrever |
 | Windows | M9 | a escrever |
+
