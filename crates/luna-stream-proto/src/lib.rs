@@ -11,6 +11,7 @@ pub mod methods {
     pub const PING: &str = "daemon.ping";
     pub const ENCODER_LIST: &str = "encoder.list";
     pub const RECORD_START: &str = "record.start";
+    pub const RECORD_STATUS: &str = "record.status";
     pub const RECORD_STOP: &str = "record.stop";
 }
 
@@ -197,6 +198,56 @@ fn default_true() -> bool {
     true
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ContainerFormat {
+    #[default]
+    Mp4,
+    Mkv,
+}
+
+impl ContainerFormat {
+    pub fn extension(&self) -> &'static str {
+        match self {
+            Self::Mp4 => "mp4",
+            Self::Mkv => "mkv",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum QualityPreset {
+    Ultra,
+    #[default]
+    High,
+    Medium,
+    Low,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VideoRecordConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+    #[serde(default)]
+    pub quality: QualityPreset,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bitrate_kbps: Option<u32>,
+}
+
+impl Default for VideoRecordConfig {
+    fn default() -> Self {
+        Self {
+            width: None,
+            height: None,
+            quality: QualityPreset::High,
+            bitrate_kbps: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AudioConfig {
     #[serde(default)]
@@ -209,6 +260,8 @@ pub struct AudioConfig {
     pub microphone: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mic_device: Option<String>,
+    #[serde(default = "default_true")]
+    pub separate_tracks: bool,
 }
 
 impl Default for AudioConfig {
@@ -219,6 +272,7 @@ impl Default for AudioConfig {
             call: true,
             microphone: true,
             mic_device: None,
+            separate_tracks: true,
         }
     }
 }
@@ -229,11 +283,20 @@ fn default_fps() -> u32 {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RecordStartParams {
-    pub output: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_dir: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game_name: Option<String>,
+    #[serde(default)]
+    pub format: ContainerFormat,
     #[serde(default)]
     pub source: SourceKind,
     #[serde(default = "default_fps")]
     pub fps: u32,
+    #[serde(default)]
+    pub video: VideoRecordConfig,
     #[serde(default)]
     pub audio: AudioConfig,
 }
@@ -241,10 +304,31 @@ pub struct RecordStartParams {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RecordStartResult {
     pub encoder: String,
+    #[serde(default)]
+    pub path: PathBuf,
+    #[serde(default)]
+    pub format: ContainerFormat,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RecordStatusResult {
+    pub recording: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<PathBuf>,
+    #[serde(default)]
+    pub duration_ms: u64,
+    #[serde(default)]
+    pub bytes_written: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encoder: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub format: Option<ContainerFormat>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RecordStopResult {
     pub path: PathBuf,
     pub duration_ms: u64,
+    #[serde(default)]
+    pub bytes_written: u64,
 }

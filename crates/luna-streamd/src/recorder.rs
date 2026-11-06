@@ -178,9 +178,11 @@ impl Recorder {
         let _ = pipeline.set_state(gst::State::Null);
 
         let duration_ms = start_time.elapsed().as_millis() as u64;
+        let bytes_written = std::fs::metadata(&output).map(|m| m.len()).unwrap_or(0);
         Ok(RecordStopResult {
             path: output,
             duration_ms,
+            bytes_written,
         })
     }
 }

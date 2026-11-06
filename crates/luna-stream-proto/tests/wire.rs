@@ -48,7 +48,7 @@ fn error_codes() {
 fn record_start_defaults() {
     let raw = r#"{"output":"/x.mkv"}"#;
     let params: RecordStartParams = serde_json::from_str(raw).expect("deserialize params");
-    assert_eq!(params.output, PathBuf::from("/x.mkv"));
+    assert_eq!(params.output, Some(PathBuf::from("/x.mkv")));
     assert_eq!(params.source, SourceKind::Screen);
     assert_eq!(params.fps, 60);
 }

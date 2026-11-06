@@ -22,6 +22,7 @@ pub fn describe(src: &VideoSource, enc: &EncoderInfo, fps: u32, output: &Path) -
         call: false,
         microphone: false,
         mic_device: None,
+        separate_tracks: false,
     };
     describe_with_audio(
         src,

@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::env;
 use std::os::fd::AsRawFd;
+use std::path::PathBuf;
 use tokio::sync::Mutex;
 
 use crate::encoder;
@@ -95,6 +96,11 @@ impl Handler for Daemon {
                     probed.into_iter().next().ok_or(ErrorCode::NoEncoder)?
                 };
 
+                let output_path = start_params
+                    .output
+                    .clone()
+                    .unwrap_or_else(|| PathBuf::from("output.mp4"));
+
                 match start_params.source {
                     SourceKind::Test => {
                         let mut recorder = self.recorder.lock().await;
@@ -105,11 +111,13 @@ impl Handler for Daemon {
                                 start_params.fps,
                                 &start_params.audio,
                                 AudioSourceKind::Test,
-                                start_params.output,
+                                output_path.clone(),
                             )
                             .await?;
                         let res = RecordStartResult {
                             encoder: enc.element,
+                            path: output_path,
+                            format: start_params.format,
                         };
                         serde_json::to_value(res)
                             .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
@@ -117,7 +125,7 @@ impl Handler for Daemon {
                     SourceKind::Screen => {
                         let mut recorder = self.recorder.lock().await;
                         // Valida output antes de abrir o portal
-                        crate::recorder::validate_output(&start_params.output)?;
+                        crate::recorder::validate_output(&output_path)?;
 
                         let session = portal::open_screen(&self.token_store).await?;
                         let raw_fd = session.fd.as_raw_fd();
@@ -133,7 +141,7 @@ impl Handler for Daemon {
                                 start_params.fps,
                                 &start_params.audio,
                                 AudioSourceKind::PipeWire,
-                                start_params.output,
+                                output_path.clone(),
                             )
                             .await?;
 
@@ -141,6 +149,8 @@ impl Handler for Daemon {
 
                         let res = RecordStartResult {
                             encoder: enc.element,
+                            path: output_path,
+                            format: start_params.format,
                         };
                         serde_json::to_value(res)
                             .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))

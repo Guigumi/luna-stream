@@ -28,6 +28,7 @@ async fn generates_three_audio_tracks_in_mkv() {
         call: true,
         microphone: true,
         mic_device: None,
+        separate_tracks: true,
     };
 
     let desc = describe_with_audio(
@@ -85,6 +86,7 @@ async fn omits_disabled_tracks() {
         call: false,
         microphone: false,
         mic_device: None,
+        separate_tracks: true,
     };
 
     let desc = describe_with_audio(
