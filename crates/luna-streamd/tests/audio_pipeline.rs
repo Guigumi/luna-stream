@@ -64,7 +64,11 @@ async fn generates_three_audio_tracks_in_mkv() {
     assert_eq!(video_streams.len(), 1);
 
     let audio_streams = info.audio_streams();
-    assert_eq!(audio_streams.len(), 3, "expected 3 audio streams");
+    assert_eq!(
+        audio_streams.len(),
+        4,
+        "expected 4 audio streams: mix + 3 isolated"
+    );
     for s in audio_streams {
         assert_eq!(
             s.caps().unwrap().structure(0).unwrap().name(),
@@ -86,7 +90,7 @@ async fn omits_disabled_tracks() {
         call: false,
         microphone: false,
         mic_device: None,
-        separate_tracks: true,
+        separate_tracks: false,
     };
 
     let desc = describe_with_audio(

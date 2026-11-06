@@ -50,8 +50,8 @@ async fn records_screen_and_three_audio_tracks() {
     let audio_streams = info.audio_streams();
     assert_eq!(
         audio_streams.len(),
-        3,
-        "deve conter 3 streams de áudio (jogo, call, mic)"
+        4,
+        "deve conter 4 streams de áudio (mix, jogo, call, mic)"
     );
 
     let _ = std::fs::remove_file(output_path);
