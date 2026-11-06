@@ -1,4 +1,4 @@
-use luna_stream_proto::EncoderInfo;
+use luna_stream_proto::{AudioConfig, EncoderInfo, SystemAudioMode};
 use std::os::fd::RawFd;
 use std::path::Path;
 
@@ -8,8 +8,40 @@ pub enum VideoSource {
     Test,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AudioSourceKind {
+    PipeWire,
+    Test,
+    Silence,
+}
+
 pub fn describe(src: &VideoSource, enc: &EncoderInfo, fps: u32, output: &Path) -> String {
-    let src_part = match src {
+    let empty_audio = AudioConfig {
+        mode: SystemAudioMode::Isolated,
+        game: false,
+        call: false,
+        microphone: false,
+        mic_device: None,
+    };
+    describe_with_audio(
+        src,
+        enc,
+        fps,
+        &empty_audio,
+        AudioSourceKind::Silence,
+        output,
+    )
+}
+
+pub fn describe_with_audio(
+    video_src: &VideoSource,
+    enc: &EncoderInfo,
+    fps: u32,
+    audio: &AudioConfig,
+    audio_src: AudioSourceKind,
+    output: &Path,
+) -> String {
+    let src_part = match video_src {
         VideoSource::Test => "videotestsrc is-live=true pattern=ball".to_string(),
         VideoSource::PipeWire { fd, node_id } => {
             format!(
@@ -41,8 +73,71 @@ pub fn describe(src: &VideoSource, enc: &EncoderInfo, fps: u32, output: &Path) -
         }
     };
 
+    let mut parts = Vec::new();
+
+    // Ramo de Vídeo com queue antes do muxer
+    parts.push(format!(
+        "{src_part} ! videorate ! video/x-raw,framerate={fps}/1 {enc_part} ! h264parse ! queue max-size-time=1000000000 max-size-buffers=0 max-size-bytes=0 ! mux."
+    ));
+
+    // Ramo de Áudio: Jogo / Apps
+    if audio.game {
+        let game_src = match audio_src {
+            AudioSourceKind::Test => "audiotestsrc is-live=true freq=440".to_string(),
+            AudioSourceKind::Silence => "audiotestsrc is-live=true wave=silence".to_string(),
+            AudioSourceKind::PipeWire => {
+                let autoconnect = if audio.mode == SystemAudioMode::DesktopLoopback {
+                    "true"
+                } else {
+                    "false"
+                };
+                format!(
+                    r#"pipewiresrc client-name="luna-audio-game" stream-properties="props,media.role=Communication,node.name=luna-audio-game" autoconnect={autoconnect} do-timestamp=true"#
+                )
+            }
+        };
+        parts.push(format!(
+            "{game_src} ! audioconvert ! audioresample ! opusenc bitrate=128000 ! queue max-size-time=1000000000 max-size-buffers=0 max-size-bytes=0 ! mux."
+        ));
+    }
+
+    // Ramo de Áudio: Call / Voz (Discord, etc.)
+    if audio.call {
+        let call_src = match audio_src {
+            AudioSourceKind::Test => "audiotestsrc is-live=true freq=880".to_string(),
+            AudioSourceKind::Silence => "audiotestsrc is-live=true wave=silence".to_string(),
+            AudioSourceKind::PipeWire => {
+                r#"pipewiresrc client-name="luna-audio-call" stream-properties="props,media.role=Communication,node.name=luna-audio-call" autoconnect=false do-timestamp=true"#.to_string()
+            }
+        };
+        parts.push(format!(
+            "{call_src} ! audioconvert ! audioresample ! opusenc bitrate=128000 ! queue max-size-time=1000000000 max-size-buffers=0 max-size-bytes=0 ! mux."
+        ));
+    }
+
+    // Ramo de Áudio: Microfone
+    if audio.microphone {
+        let mic_src = match audio_src {
+            AudioSourceKind::Test => "audiotestsrc is-live=true freq=1320".to_string(),
+            AudioSourceKind::Silence => "audiotestsrc is-live=true wave=silence".to_string(),
+            AudioSourceKind::PipeWire => {
+                let target = audio
+                    .mic_device
+                    .as_deref()
+                    .unwrap_or("@DEFAULT_AUDIO_SOURCE@");
+                format!(
+                    r#"pipewiresrc client-name="luna-audio-mic" target-object="{target}" autoconnect=true do-timestamp=true"#
+                )
+            }
+        };
+        parts.push(format!(
+            "{mic_src} ! audioconvert ! audioresample ! opusenc bitrate=96000 ! queue max-size-time=1000000000 max-size-buffers=0 max-size-bytes=0 ! mux."
+        ));
+    }
+
     let out_str = output.to_string_lossy();
-    format!(
-        "{src_part} ! videorate ! video/x-raw,framerate={fps}/1 {enc_part} ! h264parse ! matroskamux ! filesink location=\"{out_str}\""
-    )
+    let mux_and_sink = format!("matroskamux name=mux ! filesink location=\"{out_str}\"");
+    parts.push(mux_and_sink);
+
+    parts.join(" ")
 }
