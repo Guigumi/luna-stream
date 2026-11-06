@@ -2,11 +2,12 @@ use gstreamer as gst;
 use gstreamer::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tracing::{error, info};
 
-use crate::pipeline::{VideoSource, describe};
-use luna_stream_proto::{EncoderInfo, ErrorCode, RecordStopResult, RpcError};
+use crate::audio::router::AudioRouter;
+use crate::pipeline::{AudioSourceKind, VideoSource, describe_with_audio};
+use luna_stream_proto::{AudioConfig, EncoderInfo, ErrorCode, RecordStopResult, RpcError};
 
 pub fn validate_output(path: &Path) -> Result<(), RpcError> {
     if path.exists() {
@@ -33,6 +34,7 @@ pub struct Recorder {
     pipeline: Option<gst::Pipeline>,
     start_time: Option<Instant>,
     output_path: Option<PathBuf>,
+    audio_router: Option<AudioRouter>,
 }
 
 impl Recorder {
@@ -41,6 +43,7 @@ impl Recorder {
             pipeline: None,
             start_time: None,
             output_path: None,
+            audio_router: None,
         }
     }
 
@@ -48,11 +51,13 @@ impl Recorder {
         self.pipeline.is_some()
     }
 
-    pub fn start(
+    pub async fn start(
         &mut self,
         src: VideoSource,
         enc: &EncoderInfo,
         fps: u32,
+        audio: &AudioConfig,
+        audio_src: AudioSourceKind,
         output: PathBuf,
     ) -> Result<(), RpcError> {
         if self.is_recording() {
@@ -61,7 +66,7 @@ impl Recorder {
 
         validate_output(&output)?;
 
-        let desc = describe(&src, enc, fps, &output);
+        let desc = describe_with_audio(&src, enc, fps, audio, audio_src, &output);
         info!("Iniciando pipeline de gravação: {desc}");
 
         let element = gst::parse::launch(&desc).map_err(|e| {
@@ -86,6 +91,29 @@ impl Recorder {
             )
         })?;
 
+        // Inicializa AudioRouter quando capturando do PipeWire
+        if audio_src == AudioSourceKind::PipeWire {
+            let game_target = if audio.game {
+                Some("luna-audio-game".to_string())
+            } else {
+                None
+            };
+            let call_target = if audio.call {
+                Some("luna-audio-call".to_string())
+            } else {
+                None
+            };
+
+            if game_target.is_some() || call_target.is_some() {
+                let mut router = AudioRouter::new(game_target, call_target);
+                // Executa sincronização inicial
+                let _ = router.sync().await;
+                // Inicia sincronização periódica a cada 2 segundos para novos apps/jogos
+                router.start_periodic_sync(Duration::from_secs(2));
+                self.audio_router = Some(router);
+            }
+        }
+
         self.pipeline = Some(pipeline);
         self.start_time = Some(Instant::now());
         self.output_path = Some(output);
@@ -93,10 +121,15 @@ impl Recorder {
         Ok(())
     }
 
-    pub fn stop(&mut self) -> Result<RecordStopResult, RpcError> {
+    pub async fn stop(&mut self) -> Result<RecordStopResult, RpcError> {
         let pipeline = self.pipeline.take().ok_or(ErrorCode::NotRecording)?;
         let start_time = self.start_time.take().ok_or(ErrorCode::NotRecording)?;
         let output = self.output_path.take().ok_or(ErrorCode::NotRecording)?;
+
+        // Encerra roteador de áudio e desfaz links
+        if let Some(mut router) = self.audio_router.take() {
+            router.stop().await;
+        }
 
         info!("Finalizando gravação com envio de EOS...");
         pipeline.send_event(gst::event::Eos::new());

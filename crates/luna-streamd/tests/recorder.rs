@@ -1,7 +1,7 @@
 use gstreamer_pbutils::Discoverer;
 use gstreamer_pbutils::prelude::*;
-use luna_stream_proto::{Codec, EncoderInfo, EncoderKind};
-use luna_streamd::pipeline::VideoSource;
+use luna_stream_proto::{AudioConfig, Codec, EncoderInfo, EncoderKind};
+use luna_streamd::pipeline::{AudioSourceKind, VideoSource};
 use luna_streamd::recorder::Recorder;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -23,13 +23,22 @@ async fn records_two_seconds() {
 
     let mut recorder = Recorder::new();
     let enc = test_encoder();
+    let audio = AudioConfig::default();
     recorder
-        .start(VideoSource::Test, &enc, 30, out.clone())
+        .start(
+            VideoSource::Test,
+            &enc,
+            30,
+            &audio,
+            AudioSourceKind::Test,
+            out.clone(),
+        )
+        .await
         .expect("start recorder");
 
     tokio::time::sleep(Duration::from_millis(2000)).await;
 
-    let res = recorder.stop().expect("stop recorder");
+    let res = recorder.stop().await.expect("stop recorder");
     assert_eq!(res.path, out);
     assert!(
         res.duration_ms >= 1500 && res.duration_ms <= 4000,
@@ -54,34 +63,52 @@ async fn records_two_seconds() {
     );
 }
 
-#[test]
-fn refuses_existing_output() {
+#[tokio::test]
+async fn refuses_existing_output() {
     let dir = tempdir().unwrap();
     let out = dir.path().join("exists.mkv");
     std::fs::write(&out, b"content").unwrap();
 
     let mut recorder = Recorder::new();
     let enc = test_encoder();
+    let audio = AudioConfig::default();
     let err = recorder
-        .start(VideoSource::Test, &enc, 30, out.clone())
+        .start(
+            VideoSource::Test,
+            &enc,
+            30,
+            &audio,
+            AudioSourceKind::Test,
+            out.clone(),
+        )
+        .await
         .unwrap_err();
     assert_eq!(err.code, 1003); // OutputExists
     assert_eq!(std::fs::read(&out).unwrap(), b"content");
 }
 
-#[test]
-fn refuses_missing_dir() {
+#[tokio::test]
+async fn refuses_missing_dir() {
     let out = PathBuf::from("/nao/existe_mesmo/rec.mkv");
     let mut recorder = Recorder::new();
     let enc = test_encoder();
+    let audio = AudioConfig::default();
     let err = recorder
-        .start(VideoSource::Test, &enc, 30, out)
+        .start(
+            VideoSource::Test,
+            &enc,
+            30,
+            &audio,
+            AudioSourceKind::Test,
+            out,
+        )
+        .await
         .unwrap_err();
     assert_eq!(err.code, 1004); // OutputNotWritable
 }
 
-#[test]
-fn double_start() {
+#[tokio::test]
+async fn double_start() {
     gstreamer::init().expect("gst init");
     let dir = tempdir().unwrap();
     let out1 = dir.path().join("r1.mkv");
@@ -89,17 +116,34 @@ fn double_start() {
 
     let mut recorder = Recorder::new();
     let enc = test_encoder();
+    let audio = AudioConfig::default();
     recorder
-        .start(VideoSource::Test, &enc, 30, out1)
+        .start(
+            VideoSource::Test,
+            &enc,
+            30,
+            &audio,
+            AudioSourceKind::Test,
+            out1,
+        )
+        .await
         .expect("first start");
 
     let err = recorder
-        .start(VideoSource::Test, &enc, 30, out2)
+        .start(
+            VideoSource::Test,
+            &enc,
+            30,
+            &audio,
+            AudioSourceKind::Test,
+            out2,
+        )
+        .await
         .unwrap_err();
     assert_eq!(err.code, 1001); // AlreadyRecording
 
-    recorder.stop().expect("stop");
+    recorder.stop().await.expect("stop");
 
-    let stop_err = recorder.stop().unwrap_err();
+    let stop_err = recorder.stop().await.unwrap_err();
     assert_eq!(stop_err.code, 1002); // NotRecording
 }

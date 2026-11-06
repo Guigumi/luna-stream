@@ -5,7 +5,7 @@ use std::os::fd::AsRawFd;
 use tokio::sync::Mutex;
 
 use crate::encoder;
-use crate::pipeline::VideoSource;
+use crate::pipeline::{AudioSourceKind, VideoSource};
 use crate::portal::{self, PortalSession};
 use crate::recorder::Recorder;
 use crate::token_store::TokenStore;
@@ -38,7 +38,7 @@ impl Daemon {
 
     pub async fn shutdown(&self) -> Option<luna_stream_proto::RecordStopResult> {
         let mut recorder = self.recorder.lock().await;
-        let res = recorder.stop().ok();
+        let res = recorder.stop().await.ok();
         self.portal_session.lock().await.take();
         res
     }
@@ -98,12 +98,16 @@ impl Handler for Daemon {
                 match start_params.source {
                     SourceKind::Test => {
                         let mut recorder = self.recorder.lock().await;
-                        recorder.start(
-                            VideoSource::Test,
-                            &enc,
-                            start_params.fps,
-                            start_params.output,
-                        )?;
+                        recorder
+                            .start(
+                                VideoSource::Test,
+                                &enc,
+                                start_params.fps,
+                                &start_params.audio,
+                                AudioSourceKind::Test,
+                                start_params.output,
+                            )
+                            .await?;
                         let res = RecordStartResult {
                             encoder: enc.element,
                         };
@@ -119,15 +123,19 @@ impl Handler for Daemon {
                         let raw_fd = session.fd.as_raw_fd();
                         let node_id = session.node_id;
 
-                        recorder.start(
-                            VideoSource::PipeWire {
-                                fd: raw_fd,
-                                node_id,
-                            },
-                            &enc,
-                            start_params.fps,
-                            start_params.output,
-                        )?;
+                        recorder
+                            .start(
+                                VideoSource::PipeWire {
+                                    fd: raw_fd,
+                                    node_id,
+                                },
+                                &enc,
+                                start_params.fps,
+                                &start_params.audio,
+                                AudioSourceKind::PipeWire,
+                                start_params.output,
+                            )
+                            .await?;
 
                         *self.portal_session.lock().await = Some(session);
 
@@ -141,7 +149,7 @@ impl Handler for Daemon {
             }
             methods::RECORD_STOP => {
                 let mut recorder = self.recorder.lock().await;
-                let res = recorder.stop()?;
+                let res = recorder.stop().await?;
                 self.portal_session.lock().await.take();
                 serde_json::to_value(res)
                     .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
