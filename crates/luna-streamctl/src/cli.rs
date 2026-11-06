@@ -1,5 +1,5 @@
-use clap::{Parser, Subcommand};
-use luna_stream_proto::{AudioConfig, SystemAudioMode};
+use clap::{Args, Parser, Subcommand};
+use luna_stream_proto::{AudioConfig, ContainerFormat, QualityPreset, SystemAudioMode};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug, Clone)]
@@ -19,31 +19,207 @@ pub enum Commands {
     Ping,
     #[command(about = "Lista encoders de vídeo disponíveis")]
     Encoders,
-    #[command(about = "Grava vídeo da tela ou teste")]
-    Record {
-        #[arg(long, help = "Duração da gravação em segundos")]
-        seconds: u32,
-        #[arg(long, help = "Arquivo de saída (MKV)")]
-        output: PathBuf,
-        #[arg(long, default_value = "screen", help = "Origem: screen ou test")]
-        source: String,
-        #[arg(long, default_value_t = 60, help = "Taxa de quadros por segundo")]
-        fps: u32,
-        #[arg(
-            long = "audio-mode",
-            default_value = "isolated",
-            help = "Modo de áudio: isolated (jogo/apps) ou desktop-loopback (monitor geral)"
-        )]
-        audio_mode: String,
-        #[arg(long = "mic-device", help = "Nome/ID do microfone específico")]
-        mic_device: Option<String>,
-        #[arg(long = "no-audio", help = "Desativa todo o áudio")]
-        no_audio: bool,
-        #[arg(long = "no-mic", help = "Desativa microfone")]
-        no_mic: bool,
-        #[arg(long = "no-call", help = "Desativa áudio de chamadas/Discord")]
-        no_call: bool,
-    },
+    #[command(about = "Comandos de gravação")]
+    Record(Box<RecordArgs>),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct RecordArgs {
+    #[command(subcommand)]
+    pub action: Option<RecordSubcommand>,
+
+    // Flags compartilhadas para atalho legado: `record --seconds 10 --output out.mp4`
+    #[arg(long, help = "Duração da gravação em segundos (atalho legado)")]
+    pub seconds: Option<u32>,
+
+    #[arg(long, help = "Arquivo de saída explícito")]
+    pub output: Option<PathBuf>,
+
+    #[arg(long, help = "Pasta de saída para nome automático")]
+    pub dir: Option<PathBuf>,
+
+    #[arg(long = "game-name", help = "Nome do jogo para o arquivo")]
+    pub game_name: Option<String>,
+
+    #[arg(long, default_value = "mp4", help = "Container: mp4 ou mkv")]
+    pub format: String,
+
+    #[arg(
+        long,
+        default_value = "high",
+        help = "Qualidade: ultra, high, medium, low"
+    )]
+    pub quality: String,
+
+    #[arg(long = "bitrate-kbps", help = "Bitrate de vídeo explícito em kbps")]
+    pub bitrate_kbps: Option<u32>,
+
+    #[arg(long, help = "Largura do vídeo escalado")]
+    pub width: Option<u32>,
+
+    #[arg(long, help = "Altura do vídeo escalado")]
+    pub height: Option<u32>,
+
+    #[arg(long, default_value = "screen", help = "Origem: screen ou test")]
+    pub source: String,
+
+    #[arg(long, default_value_t = 60, help = "Taxa de quadros por segundo")]
+    pub fps: u32,
+
+    #[arg(
+        long = "no-separate-tracks",
+        help = "Desativa gravação de faixas de áudio isoladas"
+    )]
+    pub no_separate_tracks: bool,
+
+    #[arg(
+        long = "audio-mode",
+        default_value = "isolated",
+        help = "Modo de áudio: isolated (jogo/apps) ou desktop-loopback (monitor geral)"
+    )]
+    pub audio_mode: String,
+
+    #[arg(long = "mic-device", help = "Nome/ID do microfone específico")]
+    pub mic_device: Option<String>,
+
+    #[arg(long = "no-audio", help = "Desativa todo o áudio")]
+    pub no_audio: bool,
+
+    #[arg(long = "no-mic", help = "Desativa microfone")]
+    pub no_mic: bool,
+
+    #[arg(long = "no-call", help = "Desativa áudio de chamadas/Discord")]
+    pub no_call: bool,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum RecordSubcommand {
+    #[command(about = "Inicia gravação contínua em segundo plano")]
+    Start(Box<RecordStartArgs>),
+    #[command(about = "Consulta o status da gravação ativa")]
+    Status,
+    #[command(about = "Finaliza a gravação ativa")]
+    Stop,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct RecordStartArgs {
+    #[arg(long, help = "Arquivo de saída explícito")]
+    pub output: Option<PathBuf>,
+
+    #[arg(long, help = "Pasta de saída para nome automático")]
+    pub dir: Option<PathBuf>,
+
+    #[arg(long = "game-name", help = "Nome do jogo para o arquivo")]
+    pub game_name: Option<String>,
+
+    #[arg(long, default_value = "mp4", help = "Container: mp4 ou mkv")]
+    pub format: String,
+
+    #[arg(
+        long,
+        default_value = "high",
+        help = "Qualidade: ultra, high, medium, low"
+    )]
+    pub quality: String,
+
+    #[arg(long = "bitrate-kbps", help = "Bitrate de vídeo explícito em kbps")]
+    pub bitrate_kbps: Option<u32>,
+
+    #[arg(long, help = "Largura do vídeo escalado")]
+    pub width: Option<u32>,
+
+    #[arg(long, help = "Altura do vídeo escalado")]
+    pub height: Option<u32>,
+
+    #[arg(long, default_value = "screen", help = "Origem: screen ou test")]
+    pub source: String,
+
+    #[arg(long, default_value_t = 60, help = "Taxa de quadros por segundo")]
+    pub fps: u32,
+
+    #[arg(
+        long = "no-separate-tracks",
+        help = "Desativa gravação de faixas de áudio isoladas"
+    )]
+    pub no_separate_tracks: bool,
+
+    #[arg(
+        long = "audio-mode",
+        default_value = "isolated",
+        help = "Modo de áudio: isolated (jogo/apps) ou desktop-loopback (monitor geral)"
+    )]
+    pub audio_mode: String,
+
+    #[arg(long = "mic-device", help = "Nome/ID do microfone específico")]
+    pub mic_device: Option<String>,
+
+    #[arg(long = "no-audio", help = "Desativa todo o áudio")]
+    pub no_audio: bool,
+
+    #[arg(long = "no-mic", help = "Desativa microfone")]
+    pub no_mic: bool,
+
+    #[arg(long = "no-call", help = "Desativa áudio de chamadas/Discord")]
+    pub no_call: bool,
+}
+
+impl RecordStartArgs {
+    pub fn parse_format(&self) -> ContainerFormat {
+        match self.format.to_lowercase().as_str() {
+            "mkv" => ContainerFormat::Mkv,
+            _ => ContainerFormat::Mp4,
+        }
+    }
+
+    pub fn parse_quality(&self) -> QualityPreset {
+        match self.quality.to_lowercase().as_str() {
+            "ultra" => QualityPreset::Ultra,
+            "medium" => QualityPreset::Medium,
+            "low" => QualityPreset::Low,
+            _ => QualityPreset::High,
+        }
+    }
+
+    pub fn build_audio_config(&self) -> AudioConfig {
+        build_audio_config(
+            &self.audio_mode,
+            self.mic_device.clone(),
+            self.no_audio,
+            self.no_mic,
+            self.no_call,
+            !self.no_separate_tracks,
+        )
+    }
+}
+
+impl RecordArgs {
+    pub fn parse_format(&self) -> ContainerFormat {
+        match self.format.to_lowercase().as_str() {
+            "mkv" => ContainerFormat::Mkv,
+            _ => ContainerFormat::Mp4,
+        }
+    }
+
+    pub fn parse_quality(&self) -> QualityPreset {
+        match self.quality.to_lowercase().as_str() {
+            "ultra" => QualityPreset::Ultra,
+            "medium" => QualityPreset::Medium,
+            "low" => QualityPreset::Low,
+            _ => QualityPreset::High,
+        }
+    }
+
+    pub fn build_audio_config(&self) -> AudioConfig {
+        build_audio_config(
+            &self.audio_mode,
+            self.mic_device.clone(),
+            self.no_audio,
+            self.no_mic,
+            self.no_call,
+            !self.no_separate_tracks,
+        )
+    }
 }
 
 pub fn build_audio_config(
@@ -52,6 +228,7 @@ pub fn build_audio_config(
     no_audio: bool,
     no_mic: bool,
     no_call: bool,
+    separate_tracks: bool,
 ) -> AudioConfig {
     if no_audio {
         return AudioConfig {
@@ -75,6 +252,6 @@ pub fn build_audio_config(
         call: !no_call,
         microphone: !no_mic,
         mic_device,
-        separate_tracks: true,
+        separate_tracks,
     }
 }
