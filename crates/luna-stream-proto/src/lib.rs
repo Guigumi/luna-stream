@@ -177,6 +177,52 @@ pub enum SourceKind {
     Test,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemAudioMode {
+    #[default]
+    Isolated,
+    DesktopLoopback,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioTrackKind {
+    Game,
+    Call,
+    Microphone,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AudioConfig {
+    #[serde(default)]
+    pub mode: SystemAudioMode,
+    #[serde(default = "default_true")]
+    pub game: bool,
+    #[serde(default = "default_true")]
+    pub call: bool,
+    #[serde(default = "default_true")]
+    pub microphone: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mic_device: Option<String>,
+}
+
+impl Default for AudioConfig {
+    fn default() -> Self {
+        Self {
+            mode: SystemAudioMode::Isolated,
+            game: true,
+            call: true,
+            microphone: true,
+            mic_device: None,
+        }
+    }
+}
+
 fn default_fps() -> u32 {
     60
 }
@@ -188,6 +234,8 @@ pub struct RecordStartParams {
     pub source: SourceKind,
     #[serde(default = "default_fps")]
     pub fps: u32,
+    #[serde(default)]
+    pub audio: AudioConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
