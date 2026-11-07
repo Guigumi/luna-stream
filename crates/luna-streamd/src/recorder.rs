@@ -67,6 +67,7 @@ impl Recorder {
                 bytes_written: 0,
                 encoder: None,
                 format: None,
+                last_error: None,
             };
         }
 
@@ -89,6 +90,7 @@ impl Recorder {
             bytes_written,
             encoder: self.encoder.clone(),
             format: self.format,
+            last_error: None,
         }
     }
 

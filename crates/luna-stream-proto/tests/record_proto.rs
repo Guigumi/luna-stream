@@ -62,6 +62,7 @@ fn test_record_status_result_serde() {
         bytes_written: 10_485_760,
         encoder: Some("vah264enc".to_string()),
         format: Some(ContainerFormat::Mp4),
+        last_error: None,
     };
 
     let serialized = serde_json::to_string(&status).expect("serialize status");

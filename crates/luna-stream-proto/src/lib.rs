@@ -13,6 +13,10 @@ pub mod methods {
     pub const RECORD_START: &str = "record.start";
     pub const RECORD_STATUS: &str = "record.status";
     pub const RECORD_STOP: &str = "record.stop";
+    pub const REPLAY_START: &str = "replay.start";
+    pub const REPLAY_SAVE: &str = "replay.save";
+    pub const REPLAY_STATUS: &str = "replay.status";
+    pub const REPLAY_STOP: &str = "replay.stop";
 }
 
 fn default_jsonrpc() -> String {
@@ -107,6 +111,9 @@ pub enum ErrorCode {
     PermissionDenied = 1005,
     NoEncoder = 1006,
     PipelineFailed = 1007,
+    AlreadyReplaying = 1008,
+    NotReplaying = 1009,
+    ReplayEmpty = 1010,
 }
 
 impl ErrorCode {
@@ -124,6 +131,9 @@ impl ErrorCode {
             ErrorCode::PermissionDenied => "permission_denied",
             ErrorCode::NoEncoder => "no_encoder",
             ErrorCode::PipelineFailed => "pipeline_failed",
+            ErrorCode::AlreadyReplaying => "already_replaying",
+            ErrorCode::NotReplaying => "not_replaying",
+            ErrorCode::ReplayEmpty => "replay_empty",
         }
     }
 }
@@ -308,6 +318,8 @@ pub struct RecordStartResult {
     pub path: PathBuf,
     #[serde(default)]
     pub format: ContainerFormat,
+    #[serde(default)]
+    pub shared_session: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -323,6 +335,8 @@ pub struct RecordStatusResult {
     pub encoder: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format: Option<ContainerFormat>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -331,4 +345,140 @@ pub struct RecordStopResult {
     pub duration_ms: u64,
     #[serde(default)]
     pub bytes_written: u64,
+}
+
+fn default_replay_secs() -> u32 {
+    30
+}
+
+fn default_replay_ram_mb() -> u32 {
+    512
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReplayStartParams {
+    #[serde(default)]
+    pub source: SourceKind,
+    #[serde(default = "default_fps")]
+    pub fps: u32,
+    #[serde(default)]
+    pub video: VideoRecordConfig,
+    #[serde(default)]
+    pub audio: AudioConfig,
+    #[serde(default)]
+    pub format: ContainerFormat,
+    #[serde(default = "default_replay_secs")]
+    pub duration_secs: u32,
+    #[serde(default = "default_replay_ram_mb")]
+    pub max_ram_mb: u32,
+    #[serde(default = "default_true")]
+    pub hotkey: bool,
+}
+
+impl Default for ReplayStartParams {
+    fn default() -> Self {
+        Self {
+            source: SourceKind::Screen,
+            fps: default_fps(),
+            video: VideoRecordConfig::default(),
+            audio: AudioConfig::default(),
+            format: ContainerFormat::Mp4,
+            duration_secs: default_replay_secs(),
+            max_ram_mb: default_replay_ram_mb(),
+            hotkey: true,
+        }
+    }
+}
+
+impl ReplayStartParams {
+    pub fn validate(&self) -> Result<(), RpcError> {
+        if self.duration_secs < 5 || self.duration_secs > 600 {
+            return Err(ErrorCode::InvalidParams.into());
+        }
+        if self.max_ram_mb < 64 {
+            return Err(ErrorCode::InvalidParams.into());
+        }
+        if self.fps == 0 || self.fps > 240 {
+            return Err(ErrorCode::InvalidParams.into());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReplayStartResult {
+    pub encoder: String,
+    pub duration_secs: u32,
+    pub max_ram_mb: u32,
+    pub shared_session: bool,
+    pub hotkey_bound: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hotkey_trigger: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReplaySaveParams {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_secs: Option<u32>,
+    #[serde(default)]
+    pub clear_after_save: bool,
+    #[serde(default)]
+    pub format: ContainerFormat,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_dir: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game_name: Option<String>,
+}
+
+impl Default for ReplaySaveParams {
+    fn default() -> Self {
+        Self {
+            last_secs: None,
+            clear_after_save: false,
+            format: ContainerFormat::Mp4,
+            output_dir: None,
+            game_name: None,
+        }
+    }
+}
+
+impl ReplaySaveParams {
+    pub fn validate(&self) -> Result<(), RpcError> {
+        if self.last_secs == Some(0) {
+            return Err(ErrorCode::InvalidParams.into());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReplaySaveResult {
+    pub path: PathBuf,
+    pub duration_ms: u64,
+    pub bytes_written: u64,
+    pub elapsed_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReplayStatusResult {
+    pub active: bool,
+    #[serde(default)]
+    pub buffered_ms: u64,
+    #[serde(default)]
+    pub ram_bytes: u64,
+    #[serde(default)]
+    pub duration_secs: u32,
+    #[serde(default)]
+    pub max_ram_mb: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encoder: Option<String>,
+    #[serde(default)]
+    pub hotkey_bound: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReplayStopResult {
+    pub discarded_ms: u64,
 }

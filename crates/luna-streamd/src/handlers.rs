@@ -135,6 +135,7 @@ impl Handler for Daemon {
                             encoder: enc.element,
                             path: output_path,
                             format: start_params.format,
+                            shared_session: false,
                         };
                         serde_json::to_value(res)
                             .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
@@ -168,6 +169,7 @@ impl Handler for Daemon {
                             encoder: enc.element,
                             path: output_path,
                             format: start_params.format,
+                            shared_session: false,
                         };
                         serde_json::to_value(res)
                             .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
