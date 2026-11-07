@@ -2,7 +2,7 @@
 
 Motor nativo e leve para **transmitir, gravar e clipar** a tela, feito para as salas privadas da [Luna](https://lunagg.com.br).
 
-> **Status:** M0 (Fundação), M1 (Captura de Vídeo Linux), M2 (Áudio Linux multi-trilha) e M3 (Gravação Longa e Fragmentada Anti-Crash com Layout OBS) **100% concluídos e testados em hardware real**. Veja o [ROADMAP](ROADMAP.md), o [Gate M1](docs/testing/m1-manual.md), o [Gate M2](docs/testing/m2-manual.md) e o [Gate M3](docs/testing/m3-manual.md).
+> **Status:** M0 (Fundação), M1 (Captura de Vídeo Linux), M2 (Áudio Linux multi-trilha), M3 (Gravação Longa e Fragmentada Anti-Crash com Layout OBS) e M4 (Replay Buffer em RAM e Clipes por Atalho Global) **100% concluídos e testados em hardware real**. Veja o [ROADMAP](ROADMAP.md), o [Gate M1](docs/testing/m1-manual.md), o [Gate M2](docs/testing/m2-manual.md), o [Gate M3](docs/testing/m3-manual.md) e o [Gate M4](docs/testing/m4-manual.md).
 
 ## Como Testar
 
@@ -21,13 +21,27 @@ cargo run -p luna-streamctl -- ping
 # 4. Listar encoders detectados na GPU
 cargo run -p luna-streamctl -- encoders
 
-# 5. Iniciar gravação anti-crash contínua (fMP4 com Trilha 1 Master Mix + faixas isoladas OBS)
+# --- Replay Buffer & Clipes (Marco M4) ---
+# Iniciar o buffer circular de replay na RAM (ex: 30s, máx 512MB RAM, com atalho global ALT+F10)
+cargo run -p luna-streamctl -- replay start --duration 30 --max-ram 512
+
+# Consultar o status e uso de memória em tempo real
+cargo run -p luna-streamctl -- replay status
+
+# Salvar clipe manualmente (ou pressione o atalho global ALT+F10 em qualquer jogo/janela)
+cargo run -p luna-streamctl -- replay save
+
+# Parar o buffer de replay
+cargo run -p luna-streamctl -- replay stop
+
+# --- Gravação Contínua Anti-Crash (Marco M3) ---
+# Iniciar gravação anti-crash contínua (compartilha encode se o replay já estiver ativo!)
 cargo run -p luna-streamctl -- record start --format mp4 --quality high
 
-# 6. Consultar status em tempo real (tempo, MB gravados e encoder ativo)
+# Consultar status em tempo real (tempo, MB gravados e encoder ativo)
 cargo run -p luna-streamctl -- record status
 
-# 7. Finalizar a gravação
+# Finalizar a gravação
 cargo run -p luna-streamctl -- record stop
 
 # Flags de gravação disponíveis (start):

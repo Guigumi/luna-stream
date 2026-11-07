@@ -74,11 +74,15 @@ flowchart LR
 - Subcomandos completos no `luna-streamctl`: `record start`, `record status`, `record stop` e flags avançadas.
 - **Saída:** validação anti-crash com `kill -9` aprovada, teste em hardware real Intel VA-API com fMP4 e MKV (relatório: [Gate M3](docs/testing/m3-manual.md), especificação: [Design M3](docs/superpowers/specs/2026-11-06-m3-recording-design.md), plano: [Plano M3](docs/superpowers/plans/2026-11-06-m3-recording-plan.md)).
 
-### M4 — Replay buffer / Clipes
-- Buffer circular **de pacotes já codificados** (não re-encoda), alinhado em keyframe.
-- Duração e limite de RAM configuráveis; hotkey global via portal `GlobalShortcuts`.
-- Salvar últimos N s em < 1 s; notificação do sistema.
-- **Saída:** clipe de 30 s com áudio da call + mic, gerado por hotkey.
+### M4 — Replay buffer / Clipes ✅ (concluído na v0.4.0)
+- Buffer circular em RAM (`ReplayRingBuffer`) **de pacotes já codificados** (zero re-encode), alinhado em keyframe de vídeo.
+- Duração e limite de RAM configuráveis com duplo descarte seguro (sempre retendo o GOP mais recente).
+- Atalho global via portal Wayland `GlobalShortcuts` (`ALT+F10`), desacoplado de foco de janela ou jogo.
+- Notificações nativas do sistema com link para o arquivo salvo (`NotificationProxy`).
+- Escrita rápida de clipes em tempo recorde (< 1 s na velocidade do SSD) em diretório dedicado (`$XDG_VIDEOS_DIR/Luna/Clips/`).
+- Sessão compartilhada (`CaptureSession`): um único encode na GPU compartilhado entre gravação e replay simultâneos.
+- Subcomandos completos no `luna-streamctl`: `replay start`, `replay save`, `replay status`, `replay stop`.
+- **Saída:** clipes salvos em < 1s com layout OBS (Mix + Game + Call + Mic), disparados por atalho global e com sessão única (relatório: [Gate M4](docs/testing/m4-manual.md), especificação: [Design M4](docs/superpowers/specs/2026-11-06-m4-replay-buffer-design.md), plano: [Plano M4](docs/superpowers/plans/2026-11-06-m4-replay-buffer-plan.md)).
 
 ### M5 — Integração com o share-client atual
 - Electron fala com o motor pelo socket: botões Clipar / Gravar, status, configurações.
