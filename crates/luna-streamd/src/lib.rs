@@ -7,6 +7,7 @@ pub mod naming;
 pub mod pipeline;
 pub mod portal;
 pub mod recorder;
+pub mod replay_buffer;
 pub mod server;
 pub mod socket;
 pub mod token_store;
