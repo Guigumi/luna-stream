@@ -161,3 +161,71 @@ pub fn resolve_output_path(
 
     Ok(final_path)
 }
+
+/// Margem extra de espaço em disco ao salvar um clipe (64 MiB).
+pub const CLIP_DISK_MARGIN_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Diretório padrão para salvar os clipes do Luna:
+/// `$XDG_VIDEOS_DIR/Luna/Clips` ou fallback para `~/Videos/Luna/Clips`.
+pub fn default_clips_dir() -> PathBuf {
+    default_recordings_dir().join("Clips")
+}
+
+/// Gera nome de arquivo de clipe: `Clip_YYYY-MM-DD_HH-MM-SS_<Game>.<ext>`
+pub fn generate_clip_filename(game_name: &str, format: ContainerFormat) -> String {
+    let now = Local::now();
+    let timestamp = now.format("%Y-%m-%d_%H-%M-%S").to_string();
+    let safe_game = sanitize_filename(game_name);
+    format!("Clip_{timestamp}_{safe_game}.{}", format.extension())
+}
+
+/// Resolve o caminho final completo para salvar um clipe.
+/// Cria a pasta pai se não existir, checa espaço em disco (estimativa + margem)
+/// e se já houver um arquivo com o mesmo nome gerado no mesmo segundo, adiciona
+/// sufixos anti-colisão `_2`, `_3`, etc.
+pub fn resolve_clip_path(
+    output_dir: Option<&Path>,
+    game_name: Option<&str>,
+    format: ContainerFormat,
+    graph: Option<&AudioGraph>,
+    own_pid: u32,
+    estimated_clip_bytes: u64,
+) -> Result<PathBuf, RpcError> {
+    let dir = output_dir
+        .map(PathBuf::from)
+        .unwrap_or_else(default_clips_dir);
+
+    let game = if let Some(g) = game_name {
+        sanitize_filename(g)
+    } else if let Some(g) = graph {
+        sanitize_filename(&detect_active_game_name(g, own_pid))
+    } else {
+        "Desktop".to_string()
+    };
+
+    if !dir.exists() {
+        fs::create_dir_all(&dir).map_err(|_| RpcError::from(ErrorCode::OutputNotWritable))?;
+    }
+
+    let min_free = estimated_clip_bytes.saturating_add(CLIP_DISK_MARGIN_BYTES);
+    check_free_space(&dir, min_free).map_err(RpcError::from)?;
+
+    let now = Local::now();
+    let timestamp = now.format("%Y-%m-%d_%H-%M-%S").to_string();
+    let base_stem = format!("Clip_{timestamp}_{game}");
+    let ext = format.extension();
+
+    let mut candidate = dir.join(format!("{base_stem}.{ext}"));
+    if !candidate.exists() {
+        return Ok(candidate);
+    }
+
+    let mut counter = 2u32;
+    loop {
+        candidate = dir.join(format!("{base_stem}_{counter}.{ext}"));
+        if !candidate.exists() {
+            return Ok(candidate);
+        }
+        counter = counter.saturating_add(1);
+    }
+}

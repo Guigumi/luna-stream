@@ -150,3 +150,56 @@ fn resolves_output_path_explicit_or_automatic() {
             .ends_with(".mkv")
     );
 }
+
+#[test]
+fn clip_path_creates_clips_subdir_and_resolves_same_second_collisions() {
+    let dir = tempfile::tempdir().unwrap();
+    let p1 = luna_streamd::naming::resolve_clip_path(
+        Some(dir.path()),
+        Some("Counter Strike 2"),
+        ContainerFormat::Mp4,
+        None,
+        1234,
+        10 * 1024 * 1024,
+    )
+    .unwrap();
+
+    let name1 = p1.file_name().unwrap().to_str().unwrap();
+    assert!(name1.starts_with("Clip_"));
+    assert!(name1.ends_with("_Counter_Strike_2.mp4"));
+
+    // Simula arquivo já salvo no mesmo segundo
+    std::fs::write(&p1, b"clip1").unwrap();
+
+    let p2 = luna_streamd::naming::resolve_clip_path(
+        Some(dir.path()),
+        Some("Counter Strike 2"),
+        ContainerFormat::Mp4,
+        None,
+        1234,
+        10 * 1024 * 1024,
+    )
+    .unwrap();
+    assert_ne!(p1, p2);
+    assert!(p2
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .ends_with("_Counter_Strike_2_2.mp4"));
+}
+
+#[test]
+fn clip_path_rejects_when_estimated_size_plus_margin_exceeds_disk() {
+    let dir = tempfile::tempdir().unwrap();
+    let err = luna_streamd::naming::resolve_clip_path(
+        Some(dir.path()),
+        Some("Desktop"),
+        ContainerFormat::Mkv,
+        None,
+        1234,
+        u64::MAX - 1024,
+    )
+    .unwrap_err();
+    assert_eq!(err.code, luna_stream_proto::ErrorCode::OutputNotWritable as i32);
+}
