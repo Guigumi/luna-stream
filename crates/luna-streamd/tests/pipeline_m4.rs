@@ -46,7 +46,9 @@ fn describe_producer_builds_parsable_mp4_and_mkv_appsink_pipelines() {
         ]
     );
     assert!(desc_mp4.contains("h264parse config-interval=-1 ! video/x-h264,stream-format=avc,alignment=au ! appsink name=vsink"));
-    assert!(desc_mp4.contains("audio/mpeg,mpegversion=4,stream-format=raw ! appsink name=asink_mix"));
+    assert!(
+        desc_mp4.contains("audio/mpeg,mpegversion=4,stream-format=raw ! appsink name=asink_mix")
+    );
     assert!(!desc_mp4.contains("mp4mux"));
     gst::parse::launch(&desc_mp4).expect("pipeline produtor MP4 deve compilar no GStreamer");
 

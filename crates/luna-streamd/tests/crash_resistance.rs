@@ -203,3 +203,54 @@ async fn test_clusterized_mkv_resists_sigkill() {
     assert_eq!(info.video_streams().len(), 1);
     assert_eq!(info.audio_streams().len(), 3);
 }
+
+#[tokio::test]
+async fn test_live_record_muxer_resists_sigkill() {
+    gst::init().expect("gst init");
+    let dir = tempdir().unwrap();
+    let out = dir.path().join("muxer_crash.mp4");
+
+    let desc = format!(
+        "videotestsrc is-live=true pattern=ball ! videorate ! video/x-raw,framerate=30/1 ! videoconvert ! openh264enc gop-size=60 ! h264parse ! queue ! mp4mux fragment-duration=1000 name=mux ! filesink buffer-mode=unbuffered location=\"{}\"",
+        out.to_str().unwrap()
+    );
+
+    let mut child = Command::new("bash")
+        .arg("-c")
+        .arg(format!("exec gst-launch-1.0 {desc}"))
+        .spawn()
+        .expect("spawn gst-launch");
+
+    tokio::time::sleep(Duration::from_millis(2500)).await;
+
+    let pid = Pid::from_raw(child.id() as i32);
+    let _ = kill(pid, Signal::SIGKILL);
+    let _ = child.wait();
+
+    assert!(out.exists(), "arquivo deve existir após SIGKILL");
+    let probe = Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            out.to_str().unwrap(),
+        ])
+        .output()
+        .expect("ffprobe");
+
+    assert!(
+        probe.status.success(),
+        "ffprobe deve ler fMP4 do muxer após SIGKILL"
+    );
+    let dur: f64 = String::from_utf8_lossy(&probe.stdout)
+        .trim()
+        .parse()
+        .unwrap();
+    assert!(
+        dur >= 1.0,
+        "deve ter pelo menos 1s de fragmentos válidos: {dur}s"
+    );
+}

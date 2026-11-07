@@ -44,25 +44,40 @@ pub fn write_clip_offline(
         return Err(ErrorCode::ReplayEmpty.into());
     }
 
-    let mut packets_by_track: BTreeMap<TrackId, Vec<gst::Buffer>> = BTreeMap::new();
+    let mut raw_packets_by_track: BTreeMap<TrackId, Vec<&EncodedPacket>> = BTreeMap::new();
     let mut caps_by_track: HashMap<TrackId, gst::Caps> = HashMap::new();
 
     for seg in &snapshot.segments {
         for pkt in &seg.packets {
-            if let Some(buf) = rebase_buffer(pkt, snapshot.start_pts) {
-                caps_by_track
-                    .entry(pkt.track)
-                    .or_insert_with(|| pkt.caps.clone());
-                packets_by_track.entry(pkt.track).or_default().push(buf);
-            }
+            caps_by_track
+                .entry(pkt.track)
+                .or_insert_with(|| pkt.caps.clone());
+            raw_packets_by_track.entry(pkt.track).or_default().push(pkt);
         }
     }
 
     // Deve conter obrigatoriamente a trilha de vídeo com pelo menos um pacote
-    let video_buffers = match packets_by_track.get(&TrackId::Video) {
-        Some(bufs) if !bufs.is_empty() => bufs,
+    let video_packets = match raw_packets_by_track.get(&TrackId::Video) {
+        Some(pkts) if !pkts.is_empty() => pkts,
         _ => return Err(ErrorCode::ReplayEmpty.into()),
     };
+
+    // Rebase individual por trilha: alinha cada fluxo em 0s respeitando diferenças de clock/encoder
+    let mut packets_by_track: BTreeMap<TrackId, Vec<gst::Buffer>> = BTreeMap::new();
+    for (track, pkts) in &raw_packets_by_track {
+        if let Some(first_pkt) = pkts.first() {
+            let base_pts = first_pkt.pts().unwrap_or(gst::ClockTime::ZERO);
+            let mut bufs = Vec::with_capacity(pkts.len());
+            for pkt in pkts {
+                if let Some(buf) = rebase_buffer(pkt, base_pts) {
+                    bufs.push(buf);
+                }
+            }
+            if !bufs.is_empty() {
+                packets_by_track.insert(*track, bufs);
+            }
+        }
+    }
 
     let out_str = output.to_string_lossy();
     let mux_and_sink = match format {
@@ -100,7 +115,7 @@ pub fn write_clip_offline(
         };
 
         parts.push(format!(
-            "appsrc name=src_{idx} format=time is-live=false ! {parser} ! queue max-size-time=1000000000 max-size-buffers=0 max-size-bytes=0 ! mux."
+            "appsrc name=src_{idx} format=time is-live=false ! {parser} ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! mux."
         ));
         active_tracks.push(*track);
     }
@@ -165,7 +180,7 @@ pub fn write_clip_offline(
     let _ = pipeline.set_state(gst::State::Null);
 
     let bytes = fs::metadata(output).map(|m| m.len()).unwrap_or(0);
-    let _ = video_buffers; // Mantém referência viva
+    let _ = video_packets; // Mantém referência viva
     Ok(bytes)
 }
 
@@ -292,22 +307,26 @@ impl LiveRecordMuxer {
             }
         }
 
-        let mut origin_pts: Option<gst::ClockTime> = None;
+        let mut video_started = false;
+        let mut track_origin_pts: HashMap<TrackId, gst::ClockTime> = HashMap::new();
         let start_instant = Instant::now();
 
         while let Ok(msg) = rx.recv() {
             match msg {
                 MuxMsg::Packet(pkt) => {
-                    if origin_pts.is_none() {
+                    if !video_started {
                         if pkt.is_video_keyframe() {
-                            origin_pts = pkt.pts();
-                            info!("Gravação contínua alinhada em keyframe (origin={origin_pts:?})");
+                            video_started = true;
+                            info!("Gravação contínua alinhada em keyframe de vídeo");
                         } else {
                             continue;
                         }
                     }
 
-                    let base = origin_pts.unwrap_or(gst::ClockTime::ZERO);
+                    let base = *track_origin_pts
+                        .entry(pkt.track)
+                        .or_insert_with(|| pkt.pts().unwrap_or(gst::ClockTime::ZERO));
+
                     if let Some(appsrc) = appsrc_map.get(&pkt.track) {
                         if caps_set.insert(pkt.track) {
                             appsrc.set_caps(Some(&pkt.caps));

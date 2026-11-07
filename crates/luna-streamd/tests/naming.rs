@@ -181,12 +181,13 @@ fn clip_path_creates_clips_subdir_and_resolves_same_second_collisions() {
     )
     .unwrap();
     assert_ne!(p1, p2);
-    assert!(p2
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .ends_with("_Counter_Strike_2_2.mp4"));
+    assert!(
+        p2.file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with("_Counter_Strike_2_2.mp4")
+    );
 }
 
 #[test]
@@ -201,5 +202,8 @@ fn clip_path_rejects_when_estimated_size_plus_margin_exceeds_disk() {
         u64::MAX - 1024,
     )
     .unwrap_err();
-    assert_eq!(err.code, luna_stream_proto::ErrorCode::OutputNotWritable as i32);
+    assert_eq!(
+        err.code,
+        luna_stream_proto::ErrorCode::OutputNotWritable as i32
+    );
 }

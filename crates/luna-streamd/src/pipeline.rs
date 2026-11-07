@@ -206,7 +206,8 @@ fn call_audio_source_part(audio_src: AudioSourceKind) -> String {
         AudioSourceKind::Test => "audiotestsrc is-live=true freq=880".to_string(),
         AudioSourceKind::Silence => "audiotestsrc is-live=true wave=silence".to_string(),
         AudioSourceKind::PipeWire => {
-            r#"pulsesrc client-name="luna-audio-call" device="luna_call.monitor" do-timestamp=true"#.to_string()
+            r#"pulsesrc client-name="luna-audio-call" device="luna_call.monitor" do-timestamp=true"#
+                .to_string()
         }
     }
 }
