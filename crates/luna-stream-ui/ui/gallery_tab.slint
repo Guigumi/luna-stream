@@ -275,24 +275,30 @@ export component GalleryTab inherits VerticalLayout {
                             }
                         }
 
-                        // Badge discreto de tipo no topo da miniatura
-                        PillBadge {
-                            x: 4px;
-                            y: 4px;
-                            text: item.kind-label;
-                            bg: item.is-clip ? Theme.accent : Theme.surface-elevated;
-                            fg: #FFFFFF;
-                            border-col: transparent;
-                        }
+                        // Camada de Badges sobre a miniatura
+                        VerticalLayout {
+                            padding: 4px;
+                            alignment: space-between;
 
-                        // Duração no rodapé da miniatura
-                        PillBadge {
-                            x: parent.width - self.width - 4px;
-                            y: parent.height - self.height - 4px;
-                            text: item.duration-label;
-                            bg: #000000;
-                            fg: #FFFFFF;
-                            border-col: transparent;
+                            HorizontalLayout {
+                                alignment: start;
+                                PillBadge {
+                                    text: item.kind-label;
+                                    bg: item.is-clip ? Theme.accent : Theme.surface-elevated;
+                                    fg: #FFFFFF;
+                                    border-col: transparent;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                alignment: end;
+                                PillBadge {
+                                    text: item.duration-label;
+                                    bg: #000000;
+                                    fg: #FFFFFF;
+                                    border-col: transparent;
+                                }
+                            }
                         }
                     }
 

@@ -4,6 +4,7 @@ import { UiMediaItem } from "types.slint";
 export component HomeTab inherits VerticalLayout {
     spacing: 16px;
     padding: 16px;
+    alignment: start;
 
     in-out property <bool> replay-active: false;
     in-out property <int> replay-progress: 0;
@@ -36,15 +37,16 @@ export component HomeTab inherits VerticalLayout {
     // Seção Superior: Cards de Replay e Gravação lado a lado
     HorizontalLayout {
         spacing: 16px;
-        min-height: 220px;
+        height: 210px;
+        vertical-stretch: 0;
 
         // Card 1: Replay
         LunaCard {
             horizontal-stretch: 1;
 
             VerticalLayout {
-                padding: 18px;
-                spacing: 12px;
+                padding: 16px;
+                spacing: 10px;
                 alignment: space-between;
 
                 // Título e Status
@@ -166,8 +168,8 @@ export component HomeTab inherits VerticalLayout {
             horizontal-stretch: 1;
 
             VerticalLayout {
-                padding: 18px;
-                spacing: 12px;
+                padding: 16px;
+                spacing: 10px;
                 alignment: space-between;
 
                 // Título e Status
@@ -188,32 +190,36 @@ export component HomeTab inherits VerticalLayout {
                     }
                 }
 
-                // Duração decorrida quando ativa
+                // Duração decorrida quando ativa ou espaçador balanceado quando inativa
                 if root.recording : Rectangle {
-                    height: 38px;
+                    height: 28px;
                     background: Theme.surface-elevated;
-                    border-radius: 6px;
+                    border-radius: 4px;
                     border-width: 1px;
                     border-color: Theme.emerald;
 
                     HorizontalLayout {
-                        padding-left: 12px;
-                        padding-right: 12px;
+                        padding-left: 10px;
+                        padding-right: 10px;
                         alignment: space-between;
                         Text {
                             text: "Tempo decorrido:";
                             color: Theme.text-secondary;
-                            font-size: 12px;
+                            font-size: 11px;
                             vertical-alignment: center;
                         }
                         Text {
                             text: root.record-status-label;
                             color: Theme.emerald;
-                            font-size: 14px;
+                            font-size: 13px;
                             font-weight: 700;
                             vertical-alignment: center;
                         }
                     }
+                }
+
+                if !root.recording : Rectangle {
+                    height: 28px;
                 }
 
                 // Atalho de teclado
@@ -274,6 +280,7 @@ export component HomeTab inherits VerticalLayout {
 
     // Seção Inferior: Capturas Recentes
     LunaCard {
+        vertical-stretch: 0;
         VerticalLayout {
             padding: 16px;
             spacing: 12px;
@@ -360,24 +367,30 @@ export component HomeTab inherits VerticalLayout {
                                 }
                             }
 
-                            // Badge discreto de tipo no canto superior esquerdo
-                            PillBadge {
-                                x: 6px;
-                                y: 6px;
-                                text: item.kind-label;
-                                bg: item.is-clip ? Theme.accent : Theme.surface-elevated;
-                                fg: #FFFFFF;
-                                border-col: transparent;
-                            }
+                            // Camada de Badges sobre a miniatura
+                            VerticalLayout {
+                                padding: 6px;
+                                alignment: space-between;
 
-                            // Duração discreta no canto inferior direito
-                            PillBadge {
-                                x: parent.width - self.width - 6px;
-                                y: parent.height - self.height - 6px;
-                                text: item.duration-label;
-                                bg: #000000;
-                                fg: #FFFFFF;
-                                border-col: transparent;
+                                HorizontalLayout {
+                                    alignment: start;
+                                    PillBadge {
+                                        text: item.kind-label;
+                                        bg: item.is-clip ? Theme.accent : Theme.surface-elevated;
+                                        fg: #FFFFFF;
+                                        border-col: transparent;
+                                    }
+                                }
+
+                                HorizontalLayout {
+                                    alignment: end;
+                                    PillBadge {
+                                        text: item.duration-label;
+                                        bg: #000000;
+                                        fg: #FFFFFF;
+                                        border-col: transparent;
+                                    }
+                                }
                             }
                         }
 

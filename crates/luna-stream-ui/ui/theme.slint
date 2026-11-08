@@ -38,15 +38,22 @@ export component PillBadge inherits Rectangle {
     border-color: border-col;
     border-radius: 4px;
     height: 20px;
-    width: label-txt.min-width + 14px;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
 
-    label-txt := Text {
-        text: root.text;
-        color: root.fg;
-        font-size: 11px;
-        font-weight: 600;
-        vertical-alignment: center;
-        horizontal-alignment: center;
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        alignment: center;
+
+        Text {
+            text: root.text;
+            color: root.fg;
+            font-size: 11px;
+            font-weight: 600;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
     }
 }
 
@@ -97,10 +104,13 @@ export component FlatIconButton inherits Rectangle {
     in property <string> text: "";
     in property <bool> active: false;
     in property <bool> disabled: false;
+    in property <length> custom-height: 24px;
     callback clicked();
 
-    height: 36px;
-    border-radius: 6px;
+    height: custom-height;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    border-radius: 4px;
     border-width: 1px;
     border-color: root.active ? Theme.accent : (touch.has-hover ? Theme.border-active : Theme.border);
     background: root.active ? Theme.surface-elevated : (touch.has-hover ? Theme.surface-elevated : Theme.surface);
@@ -112,14 +122,14 @@ export component FlatIconButton inherits Rectangle {
     }
 
     HorizontalLayout {
-        padding-left: 10px;
-        padding-right: 10px;
-        spacing: 6px;
+        padding-left: 8px;
+        padding-right: 8px;
+        spacing: 4px;
         alignment: center;
         Text {
             text: root.text;
             color: root.disabled ? Theme.text-muted : (root.active ? Theme.accent : Theme.text-primary);
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             vertical-alignment: center;
         }
