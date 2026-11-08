@@ -86,9 +86,9 @@ pub fn generate_tray_icon(state: TrayVisualState) -> Icon {
                     TrayVisualState::Idle => (0, 0, 0, 0),
                 }
             } else if is_moon {
-                (255, 139, 92, 246) // Violeta Luna #8B5CF6
+                (255, 235, 65, 65) // Accent Luna #EB4141
             } else if d_disc <= 14.0 {
-                (255, 19, 23, 34) // Disco escuro base #131722
+                (255, 20, 20, 20) // Disco escuro base #141414
             } else {
                 (0, 0, 0, 0) // Transparente
             };
