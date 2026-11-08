@@ -275,28 +275,24 @@ export component GalleryTab inherits VerticalLayout {
                             }
                         }
 
-                        // Badge de tipo no topo da miniatura
-                        Rectangle {
+                        // Badge discreto de tipo no topo da miniatura
+                        PillBadge {
                             x: 4px;
                             y: 4px;
-                            PillBadge {
-                                text: item.kind-label;
-                                bg: item.is-clip ? Theme.accent-muted : Theme.surface-elevated;
-                                fg: item.is-clip ? Theme.accent-hover : Theme.text-primary;
-                                border-col: item.is-clip ? Theme.accent : Theme.border;
-                            }
+                            text: item.kind-label;
+                            bg: item.is-clip ? Theme.accent : Theme.surface-elevated;
+                            fg: #FFFFFF;
+                            border-col: transparent;
                         }
 
                         // Duração no rodapé da miniatura
-                        Rectangle {
+                        PillBadge {
                             x: parent.width - self.width - 4px;
                             y: parent.height - self.height - 4px;
-                            PillBadge {
-                                text: item.duration-label;
-                                bg: #000000;
-                                fg: #FFFFFF;
-                                border-col: #222222;
-                            }
+                            text: item.duration-label;
+                            bg: #000000;
+                            fg: #FFFFFF;
+                            border-col: transparent;
                         }
                     }
 

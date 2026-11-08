@@ -191,7 +191,7 @@ pub async fn run_supervisor(
         saving_clip: false,
         last_saved_label: String::new(),
         recording: false,
-        record_status_label: format_profile_summary(&prefs),
+        record_status_label: String::new(),
         shared_session: false,
         restart_hint: String::new(),
         error_banner: String::new(),
@@ -605,7 +605,7 @@ pub async fn run_supervisor(
                                     let size_str = format_size_mb(st.bytes_written);
                                     snapshot.record_status_label = format!("{h:02}:{m:02}:{s:02} · {size_str}");
                                 } else {
-                                    snapshot.record_status_label = format_profile_summary(&prefs);
+                                    snapshot.record_status_label.clear();
                                 }
                                 if let Some(err) = st.last_error {
                                     snapshot.error_banner = err;

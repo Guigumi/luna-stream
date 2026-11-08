@@ -8,6 +8,7 @@ export { UiMediaItem, UiDeviceOption }
 
 export component AppWindow inherits Window {
     title: "Luna Stream";
+    icon: @image-url("../assets/icon.png");
     preferred-width: 920px;
     preferred-height: 620px;
     min-width: 820px;
@@ -156,14 +157,26 @@ export component AppWindow inherits Window {
                     spacing: 16px;
                     alignment: space-between;
 
-                    // Topo: Marca e Codificador
+                    // Topo: Marca com ícone oficial do Luna e Codificador
                     VerticalLayout {
                         spacing: 8px;
-                        Text {
-                            text: "Luna Stream";
-                            color: Theme.text-primary;
-                            font-size: 17px;
-                            font-weight: 800;
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            Image {
+                                source: @image-url("../assets/icon.png");
+                                width: 22px;
+                                height: 22px;
+                                image-fit: contain;
+                                vertical-alignment: center;
+                            }
+                            Text {
+                                text: "Luna Stream";
+                                color: Theme.text-primary;
+                                font-size: 16px;
+                                font-weight: 800;
+                                vertical-alignment: center;
+                            }
                         }
                         PillBadge {
                             text: root.encoder-label;
@@ -286,43 +299,8 @@ export component AppWindow inherits Window {
                         }
                     }
 
-                    // Rodapé da Sidebar: Perfil de Gravação e Status de Conexão
-                    VerticalLayout {
-                        spacing: 8px;
-
-                        Rectangle {
-                            height: 1px;
-                            background: Theme.border;
-                        }
-
-                        Text {
-                            text: root.profile-summary-label;
-                            color: Theme.text-secondary;
-                            font-size: 11px;
-                            font-weight: 600;
-                            overflow: elide;
-                        }
-
-                        HorizontalLayout {
-                            spacing: 6px;
-                            alignment: start;
-
-                            Rectangle {
-                                width: 8px;
-                                height: 8px;
-                                border-radius: 4px;
-                                background: root.daemon-connected ? Theme.emerald : Theme.text-muted;
-                                y: (parent.height - self.height) / 2;
-                            }
-
-                            Text {
-                                text: root.daemon-connected ? "Motor conectado" : "Desconectado";
-                                color: root.daemon-connected ? Theme.emerald : Theme.text-muted;
-                                font-size: 11px;
-                                vertical-alignment: center;
-                            }
-                        }
-                    }
+                    // Espaçador flexível para manter a navegação no topo
+                    Rectangle {}
                 }
             }
 
