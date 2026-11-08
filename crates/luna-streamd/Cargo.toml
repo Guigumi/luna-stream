@@ -19,6 +19,7 @@ ashpd.workspace = true
 gstreamer.workspace = true
 gstreamer-app.workspace = true
 gstreamer-video.workspace = true
+gstreamer-pbutils.workspace = true
 futures-util.workspace = true
 async-trait.workspace = true
 nix.workspace = true
@@ -26,6 +27,5 @@ chrono.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-gstreamer-pbutils.workspace = true
 luna-streamctl = { path = "../luna-streamctl" }
 

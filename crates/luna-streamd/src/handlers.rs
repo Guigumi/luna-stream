@@ -3,11 +3,12 @@ use serde_json::Value;
 use std::env;
 
 use crate::encoder;
+use crate::media_probe::MediaProber;
 use crate::session::SessionManager;
 use crate::token_store::TokenStore;
 use luna_stream_proto::{
-    EncoderListResult, ErrorCode, PROTOCOL_VERSION, PingResult, RecordStartParams,
-    ReplaySaveParams, ReplayStartParams, RpcError, methods,
+    EncoderListResult, ErrorCode, MediaInspectParams, PROTOCOL_VERSION, PingResult,
+    RecordStartParams, ReplaySaveParams, ReplayStartParams, RpcError, methods,
 };
 
 #[async_trait]
@@ -18,6 +19,7 @@ pub trait Handler: Send + Sync {
 pub struct Daemon {
     session_mgr: SessionManager,
     token_store: TokenStore,
+    media_prober: MediaProber,
 }
 
 impl Daemon {
@@ -27,6 +29,7 @@ impl Daemon {
         Self {
             session_mgr: SessionManager::new(),
             token_store: TokenStore::new(token_dir),
+            media_prober: MediaProber::new(),
         }
     }
 
@@ -126,6 +129,13 @@ impl Handler for Daemon {
             }
             methods::REPLAY_STOP => {
                 let res = self.session_mgr.replay_stop().await?;
+                serde_json::to_value(res)
+                    .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
+            }
+            methods::MEDIA_INSPECT => {
+                let inspect_params: MediaInspectParams = serde_json::from_value(params)
+                    .map_err(|e| RpcError::new(ErrorCode::InvalidParams as i32, e.to_string()))?;
+                let res = self.media_prober.inspect(inspect_params).await?;
                 serde_json::to_value(res)
                     .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
             }
