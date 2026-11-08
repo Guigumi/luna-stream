@@ -4,9 +4,10 @@ use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_app::AppSink;
 use luna_stream_proto::{
-    ContainerFormat, ErrorCode, RecordStartParams, RecordStartResult, RecordStatusResult,
-    RecordStopResult, ReplaySaveParams, ReplaySaveResult, ReplayStartParams, ReplayStartResult,
-    ReplayStatusResult, ReplayStopResult, RpcError, SourceKind, SystemAudioMode,
+    ContainerFormat, ErrorCode, HotkeysConfigureParams, HotkeysConfigureResult, RecordStartParams,
+    RecordStartResult, RecordStatusResult, RecordStopResult, ReplaySaveParams, ReplaySaveResult,
+    ReplayStartParams, ReplayStartResult, ReplayStatusResult, ReplayStopResult, RpcError,
+    SourceKind, SystemAudioMode,
 };
 use std::os::fd::AsRawFd;
 use std::sync::{Arc, Mutex};
@@ -16,7 +17,9 @@ use tracing::error;
 
 use crate::audio::router::{AudioGraph, AudioRouter};
 use crate::encoder;
-use crate::hotkey::{HotkeyHandle, notify_clip_saved, notify_error};
+use crate::hotkey::{
+    HotkeyAction, HotkeyHandle, notify_clip_saved, notify_error, notify_recording_state,
+};
 use crate::muxer::{LiveRecordMuxer, write_clip_offline};
 use crate::naming::{resolve_clip_path, resolve_output_path};
 use crate::pipeline::{AudioSourceKind, VideoSource, describe_producer};
@@ -59,9 +62,13 @@ impl Drop for CaptureSession {
     }
 }
 
+#[derive(Clone)]
 pub struct SessionManager {
     session: Arc<TokioMutex<Option<CaptureSession>>>,
     save_mutex: Arc<TokioMutex<()>>,
+    record_defaults: Arc<TokioMutex<RecordStartParams>>,
+    global_hotkey: Arc<TokioMutex<Option<HotkeyHandle>>>,
+    hotkey_config: Arc<TokioMutex<HotkeysConfigureResult>>,
 }
 
 impl SessionManager {
@@ -69,6 +76,96 @@ impl SessionManager {
         Self {
             session: Arc::new(TokioMutex::new(None)),
             save_mutex: Arc::new(TokioMutex::new(())),
+            record_defaults: Arc::new(TokioMutex::new(RecordStartParams::default())),
+            global_hotkey: Arc::new(TokioMutex::new(None)),
+            hotkey_config: Arc::new(TokioMutex::new(HotkeysConfigureResult {
+                replay_bound: false,
+                replay_trigger: "Alt+F8".into(),
+                record_bound: false,
+                record_trigger: "Alt+F9".into(),
+            })),
+        }
+    }
+
+    pub async fn configure_hotkeys(
+        &self,
+        params: HotkeysConfigureParams,
+        token_store: Arc<TokenStore>,
+    ) -> HotkeysConfigureResult {
+        *self.record_defaults.lock().await = params.record_defaults;
+
+        let mut hotkey_lock = self.global_hotkey.lock().await;
+        if let Some(old_handle) = hotkey_lock.take() {
+            old_handle.close();
+        }
+
+        let (action_tx, mut action_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (handle_opt, result) = crate::hotkey::bind_global_hotkeys(
+            &params.replay_trigger,
+            &params.record_trigger,
+            action_tx,
+        )
+        .await;
+
+        *hotkey_lock = handle_opt;
+        *self.hotkey_config.lock().await = result.clone();
+
+        let this = self.clone();
+        tokio::spawn(async move {
+            while let Some(action) = action_rx.recv().await {
+                this.trigger_hotkey_action(action, &token_store).await;
+            }
+        });
+
+        result
+    }
+
+    pub async fn trigger_hotkey_action(&self, action: HotkeyAction, token_store: &TokenStore) {
+        match action {
+            HotkeyAction::SaveClip => {
+                let _guard = self.save_mutex.lock().await;
+                let snap_opt = {
+                    let lock = self.session.lock().await;
+                    lock.as_ref().and_then(|s| {
+                        s.replay_buffer
+                            .lock()
+                            .unwrap()
+                            .as_ref()
+                            .and_then(|rb| rb.snapshot(None).ok())
+                    })
+                };
+                if let Some(snapshot) = snap_opt {
+                    if let Ok(path) = resolve_clip_path(
+                        None,
+                        None,
+                        ContainerFormat::Mp4,
+                        None,
+                        std::process::id(),
+                        snapshot.total_bytes,
+                    ) {
+                        let res = tokio::task::spawn_blocking(move || {
+                            write_clip_offline(snapshot, ContainerFormat::Mp4, &path).map(|_| path)
+                        })
+                        .await;
+                        if let Ok(Ok(saved_path)) = res {
+                            notify_clip_saved(&saved_path).await;
+                        }
+                    }
+                }
+            }
+            HotkeyAction::ToggleRecord => {
+                let is_recording = self.record_status().await.recording;
+                if is_recording {
+                    if let Ok(res) = self.record_stop().await {
+                        notify_recording_state(false, &res.path).await;
+                    }
+                } else {
+                    let defaults = self.record_defaults.lock().await.clone();
+                    if let Ok(res) = self.record_start(defaults, token_store).await {
+                        notify_recording_state(true, &res.path).await;
+                    }
+                }
+            }
         }
     }
 
@@ -554,53 +651,12 @@ impl SessionManager {
             .await
         });
 
-        // Configuração opcional de hotkey via portal
-        let (hotkey_handle, hotkey_bound, hotkey_trigger) = if params.hotkey {
-            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-            let bound_info = HotkeyHandle::bind(tx).await;
-            if let Some((h, trigger)) = bound_info {
-                let this = self.session.clone();
-                let save_m = self.save_mutex.clone();
-                tokio::spawn(async move {
-                    while rx.recv().await.is_some() {
-                        let _guard = save_m.lock().await;
-                        let snap_opt = {
-                            let lock = this.lock().await;
-                            lock.as_ref().and_then(|s| {
-                                s.replay_buffer
-                                    .lock()
-                                    .unwrap()
-                                    .as_ref()
-                                    .and_then(|rb| rb.snapshot(None).ok())
-                            })
-                        };
-                        if let Some(snapshot) = snap_opt {
-                            if let Ok(path) = resolve_clip_path(
-                                None,
-                                None,
-                                ContainerFormat::Mp4,
-                                None,
-                                std::process::id(),
-                                snapshot.total_bytes,
-                            ) {
-                                let res = tokio::task::spawn_blocking(move || {
-                                    write_clip_offline(snapshot, ContainerFormat::Mp4, &path)
-                                        .map(|_| path)
-                                })
-                                .await;
-                                if let Ok(Ok(saved_path)) = res {
-                                    notify_clip_saved(&saved_path).await;
-                                }
-                            }
-                        }
-                    }
-                });
-                (Some(h), true, trigger)
-            } else {
-                (None, false, None)
-            }
+        // Configuração de hotkey via gerenciador global de atalhos
+        let (hotkey_bound, hotkey_trigger) = if params.hotkey {
+            let cfg = self.hotkey_config.lock().await;
+            (cfg.replay_bound, Some(cfg.replay_trigger.clone()))
         } else {
-            (None, false, None)
+            (false, None)
         };
 
         *lock = Some(CaptureSession {
@@ -611,7 +667,7 @@ impl SessionManager {
             tracks,
             replay_buffer,
             record_muxer,
-            hotkey_handle,
+            hotkey_handle: None,
             hotkey_bound,
             hotkey_trigger: hotkey_trigger.clone(),
             replay_duration_secs: params.duration_secs,
@@ -712,6 +768,7 @@ impl SessionManager {
 
     pub async fn replay_status(&self) -> ReplayStatusResult {
         let lock = self.session.lock().await;
+        let cfg = self.hotkey_config.lock().await;
         if let Some(ref session) = *lock {
             if let Some(ref rb) = *session.replay_buffer.lock().unwrap() {
                 let (buffered_ms, ram_bytes) = rb.status();
@@ -722,7 +779,7 @@ impl SessionManager {
                     duration_secs: session.replay_duration_secs,
                     max_ram_mb: session.replay_max_ram_mb,
                     encoder: Some(session.encoder_name.clone()),
-                    hotkey_bound: session.hotkey_bound,
+                    hotkey_bound: cfg.replay_bound,
                     last_error: session.last_error.lock().unwrap().clone(),
                 };
             }
@@ -735,7 +792,7 @@ impl SessionManager {
             duration_secs: 0,
             max_ram_mb: 0,
             encoder: None,
-            hotkey_bound: false,
+            hotkey_bound: cfg.replay_bound,
             last_error: None,
         }
     }
@@ -773,6 +830,9 @@ impl SessionManager {
     }
 
     pub async fn shutdown(&self) -> Option<RecordStopResult> {
+        if let Some(h) = self.global_hotkey.lock().await.take() {
+            h.close();
+        }
         let mut lock = self.session.lock().await;
         if let Some(mut s) = lock.take() {
             s.bus_abort.abort();

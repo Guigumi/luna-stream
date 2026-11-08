@@ -1,14 +1,15 @@
 use async_trait::async_trait;
 use serde_json::Value;
 use std::env;
+use std::sync::Arc;
 
 use crate::encoder;
 use crate::media_probe::MediaProber;
 use crate::session::SessionManager;
 use crate::token_store::TokenStore;
 use luna_stream_proto::{
-    EncoderListResult, ErrorCode, MediaInspectParams, PROTOCOL_VERSION, PingResult,
-    RecordStartParams, ReplaySaveParams, ReplayStartParams, RpcError, methods,
+    EncoderListResult, ErrorCode, HotkeysConfigureParams, MediaInspectParams, PROTOCOL_VERSION,
+    PingResult, RecordStartParams, ReplaySaveParams, ReplayStartParams, RpcError, methods,
 };
 
 #[async_trait]
@@ -18,7 +19,7 @@ pub trait Handler: Send + Sync {
 
 pub struct Daemon {
     session_mgr: SessionManager,
-    token_store: TokenStore,
+    token_store: Arc<TokenStore>,
     media_prober: MediaProber,
 }
 
@@ -28,7 +29,7 @@ impl Daemon {
         let token_dir = TokenStore::default_dir();
         Self {
             session_mgr: SessionManager::new(),
-            token_store: TokenStore::new(token_dir),
+            token_store: Arc::new(TokenStore::new(token_dir)),
             media_prober: MediaProber::new(),
         }
     }
@@ -129,6 +130,16 @@ impl Handler for Daemon {
             }
             methods::REPLAY_STOP => {
                 let res = self.session_mgr.replay_stop().await?;
+                serde_json::to_value(res)
+                    .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
+            }
+            methods::HOTKEYS_CONFIGURE => {
+                let configure_params: HotkeysConfigureParams = serde_json::from_value(params)
+                    .map_err(|e| RpcError::new(ErrorCode::InvalidParams as i32, e.to_string()))?;
+                let res = self
+                    .session_mgr
+                    .configure_hotkeys(configure_params, self.token_store.clone())
+                    .await;
                 serde_json::to_value(res)
                     .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
             }
