@@ -17,8 +17,7 @@ pub enum SocketError {
 }
 
 pub fn socket_path(runtime_dir: Option<&OsStr>) -> Result<PathBuf, SocketError> {
-    let base = runtime_dir.ok_or(SocketError::NoRuntimeDir)?;
-    Ok(PathBuf::from(base).join("luna-stream").join("daemon.sock"))
+    luna_stream_proto::paths::daemon_socket_path(runtime_dir).ok_or(SocketError::NoRuntimeDir)
 }
 
 pub fn bind(path: &Path) -> Result<UnixListener, SocketError> {

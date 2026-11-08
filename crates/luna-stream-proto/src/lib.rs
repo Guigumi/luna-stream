@@ -7,6 +7,8 @@ use std::path::PathBuf;
 pub const PROTOCOL_VERSION: u32 = 1;
 pub const MAX_LINE_BYTES: usize = 65_536;
 
+pub mod paths;
+
 pub mod methods {
     pub const PING: &str = "daemon.ping";
     pub const ENCODER_LIST: &str = "encoder.list";

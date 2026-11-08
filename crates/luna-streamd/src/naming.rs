@@ -1,6 +1,5 @@
 //! Resolução de nomes de arquivo, detecção de jogo ativo e verificação de espaço em disco.
 
-use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -66,23 +65,7 @@ pub fn detect_active_game_name(graph: &AudioGraph, own_pid: u32) -> String {
 /// Diretório padrão para salvar as gravações do Luna:
 /// `$XDG_VIDEOS_DIR/Luna` ou fallback para `~/Videos/Luna` / `~/Vídeos/Luna`.
 pub fn default_recordings_dir() -> PathBuf {
-    if let Ok(xdg_videos) = env::var("XDG_VIDEOS_DIR") {
-        let p = PathBuf::from(xdg_videos);
-        if !p.as_os_str().is_empty() {
-            return p.join("Luna");
-        }
-    }
-
-    if let Ok(home) = env::var("HOME") {
-        let home_path = PathBuf::from(home);
-        let pt_br = home_path.join("Vídeos");
-        if pt_br.is_dir() {
-            return pt_br.join("Luna");
-        }
-        return home_path.join("Videos").join("Luna");
-    }
-
-    env::temp_dir().join("Luna")
+    luna_stream_proto::paths::default_recordings_dir()
 }
 
 /// Verifica se há pelo menos `min_bytes` de espaço livre na partição onde o arquivo será gravado.
@@ -168,7 +151,7 @@ pub const CLIP_DISK_MARGIN_BYTES: u64 = 64 * 1024 * 1024;
 /// Diretório padrão para salvar os clipes do Luna:
 /// `$XDG_VIDEOS_DIR/Luna/Clips` ou fallback para `~/Videos/Luna/Clips`.
 pub fn default_clips_dir() -> PathBuf {
-    default_recordings_dir().join("Clips")
+    luna_stream_proto::paths::default_clips_dir()
 }
 
 /// Gera nome de arquivo de clipe: `Clip_YYYY-MM-DD_HH-MM-SS_<Game>.<ext>`

@@ -12,10 +12,8 @@ fn resolve_socket(explicit: Option<PathBuf>) -> Result<PathBuf, String> {
         return Ok(p);
     }
 
-    match env::var_os("XDG_RUNTIME_DIR") {
-        Some(dir) => Ok(PathBuf::from(dir).join("luna-stream").join("daemon.sock")),
-        None => Err("Variável XDG_RUNTIME_DIR não encontrada".to_string()),
-    }
+    luna_stream_proto::paths::daemon_socket_path(env::var_os("XDG_RUNTIME_DIR").as_deref())
+        .ok_or_else(|| "Variável XDG_RUNTIME_DIR não encontrada".to_string())
 }
 
 #[tokio::main]
