@@ -61,3 +61,61 @@ fn test_validate_hotkey_pair_collision() {
         "O atalho não pode ser vazio."
     );
 }
+
+#[test]
+fn test_slint_key_codes_and_alt_plus_letter() {
+    // Slint Key::Alt (\u{0012}) não deve capturar como tecla final
+    assert_eq!(
+        parse_key_event("\u{0012}", true, false, false, false),
+        KeyCaptureOutcome::IgnoredModifierOnly
+    );
+    // Slint Key::Control (\u{0011})
+    assert_eq!(
+        parse_key_event("\u{0011}", false, true, false, false),
+        KeyCaptureOutcome::IgnoredModifierOnly
+    );
+    // Slint Key::Shift (\u{0010})
+    assert_eq!(
+        parse_key_event("\u{0010}", false, false, true, false),
+        KeyCaptureOutcome::IgnoredModifierOnly
+    );
+    // Slint Key::Meta (\u{0017})
+    assert_eq!(
+        parse_key_event("\u{0017}", false, false, false, true),
+        KeyCaptureOutcome::IgnoredModifierOnly
+    );
+
+    // Escape (\u{001b})
+    assert_eq!(
+        parse_key_event("\u{001b}", false, false, false, false),
+        KeyCaptureOutcome::Cancelled
+    );
+
+    // Backspace (\u{0008}) e Delete (\u{007f})
+    assert_eq!(
+        parse_key_event("\u{0008}", false, false, false, false),
+        KeyCaptureOutcome::ResetDefault
+    );
+    assert_eq!(
+        parse_key_event("\u{007f}", false, false, false, false),
+        KeyCaptureOutcome::ResetDefault
+    );
+
+    // ALT + G: Slint envia "g" com alt=true
+    assert_eq!(
+        parse_key_event("g", true, false, false, false),
+        KeyCaptureOutcome::Captured("ALT+G".into())
+    );
+
+    // ALT + F8: Slint envia "\u{F70B}" com alt=true
+    assert_eq!(
+        parse_key_event("\u{F70B}", true, false, false, false),
+        KeyCaptureOutcome::Captured("ALT+F8".into())
+    );
+
+    // F8 sozinho: Slint envia "\u{F70B}" com modifiers=false
+    assert_eq!(
+        parse_key_event("\u{F70B}", false, false, false, false),
+        KeyCaptureOutcome::Captured("F8".into())
+    );
+}

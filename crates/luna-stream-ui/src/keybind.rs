@@ -51,6 +51,78 @@ pub fn format_hotkey_label(xdg_trigger: &str) -> String {
     formatted.join(" + ")
 }
 
+enum KeyInterpretation {
+    Cancel,
+    ResetDefault,
+    ModifierOnly,
+    Named(&'static str),
+}
+
+fn map_slint_key_name(text: &str) -> Option<KeyInterpretation> {
+    match text {
+        // Cancelamento (Escape)
+        "\u{001b}" | "Escape" | "Key_Escape" => Some(KeyInterpretation::Cancel),
+
+        // Restauração de padrão (Backspace / Delete)
+        "\u{0008}" | "\u{007f}" | "BackSpace" | "Key_BackSpace" | "Delete" | "Key_Delete" => {
+            Some(KeyInterpretation::ResetDefault)
+        }
+
+        // Modificadores puros do Slint (\u{0010}..\u{0018}) e identificadores textuais
+        "\u{0010}" | "\u{0015}" | "Shift" | "Shift_L" | "Shift_R" | "ShiftL" | "ShiftR"
+        | "\u{0011}" | "\u{0016}" | "Control" | "Control_L" | "Control_R" | "ControlL" | "ControlR"
+        | "\u{0012}" | "\u{0013}" | "Alt" | "Alt_L" | "Alt_R" | "AltL" | "AltR" | "AltGr" | "Mode_switch"
+        | "\u{0014}" | "CapsLock"
+        | "\u{0017}" | "\u{0018}" | "Meta" | "Super" | "Meta_L" | "Meta_R" | "Super_L" | "Super_R" => {
+            Some(KeyInterpretation::ModifierOnly)
+        }
+
+        // Teclas de função F1 a F24 (\u{F704}..\u{F71B})
+        "\u{F704}" | "F1" | "f1" => Some(KeyInterpretation::Named("F1")),
+        "\u{F705}" | "F2" | "f2" => Some(KeyInterpretation::Named("F2")),
+        "\u{F706}" | "F3" | "f3" => Some(KeyInterpretation::Named("F3")),
+        "\u{F707}" | "F4" | "f4" => Some(KeyInterpretation::Named("F4")),
+        "\u{F708}" | "F5" | "f5" => Some(KeyInterpretation::Named("F5")),
+        "\u{F709}" | "F6" | "f6" => Some(KeyInterpretation::Named("F6")),
+        "\u{F70A}" | "F7" | "f7" => Some(KeyInterpretation::Named("F7")),
+        "\u{F70B}" | "F8" | "f8" => Some(KeyInterpretation::Named("F8")),
+        "\u{F70C}" | "F9" | "f9" => Some(KeyInterpretation::Named("F9")),
+        "\u{F70D}" | "F10" | "f10" => Some(KeyInterpretation::Named("F10")),
+        "\u{F70E}" | "F11" | "f11" => Some(KeyInterpretation::Named("F11")),
+        "\u{F70F}" | "F12" | "f12" => Some(KeyInterpretation::Named("F12")),
+        "\u{F710}" | "F13" | "f13" => Some(KeyInterpretation::Named("F13")),
+        "\u{F711}" | "F14" | "f14" => Some(KeyInterpretation::Named("F14")),
+        "\u{F712}" | "F15" | "f15" => Some(KeyInterpretation::Named("F15")),
+        "\u{F713}" | "F16" | "f16" => Some(KeyInterpretation::Named("F16")),
+        "\u{F714}" | "F17" | "f17" => Some(KeyInterpretation::Named("F17")),
+        "\u{F715}" | "F18" | "f18" => Some(KeyInterpretation::Named("F18")),
+        "\u{F716}" | "F19" | "f19" => Some(KeyInterpretation::Named("F19")),
+        "\u{F717}" | "F20" | "f20" => Some(KeyInterpretation::Named("F20")),
+        "\u{F718}" | "F21" | "f21" => Some(KeyInterpretation::Named("F21")),
+        "\u{F719}" | "F22" | "f22" => Some(KeyInterpretation::Named("F22")),
+        "\u{F71A}" | "F23" | "f23" => Some(KeyInterpretation::Named("F23")),
+        "\u{F71B}" | "F24" | "f24" => Some(KeyInterpretation::Named("F24")),
+
+        // Navegação e especiais comuns
+        "\u{F700}" | "Up" => Some(KeyInterpretation::Named("UP")),
+        "\u{F701}" | "Down" => Some(KeyInterpretation::Named("DOWN")),
+        "\u{F702}" | "Left" => Some(KeyInterpretation::Named("LEFT")),
+        "\u{F703}" | "Right" => Some(KeyInterpretation::Named("RIGHT")),
+        "\u{F727}" | "Insert" => Some(KeyInterpretation::Named("INSERT")),
+        "\u{F729}" | "Home" => Some(KeyInterpretation::Named("HOME")),
+        "\u{F72B}" | "End" => Some(KeyInterpretation::Named("END")),
+        "\u{F72C}" | "PageUp" => Some(KeyInterpretation::Named("PAGEUP")),
+        "\u{F72D}" | "PageDown" => Some(KeyInterpretation::Named("PAGEDOWN")),
+        "\u{F730}" | "Pause" => Some(KeyInterpretation::Named("PAUSE")),
+        "\u{F731}" | "PrintScreen" => Some(KeyInterpretation::Named("PRINTSCREEN")),
+        "\u{0009}" | "Tab" => Some(KeyInterpretation::Named("TAB")),
+        "\u{0020}" | "Space" => Some(KeyInterpretation::Named("SPACE")),
+        "\u{000a}" | "\r" | "Return" | "Enter" => Some(KeyInterpretation::Named("RETURN")),
+
+        _ => None,
+    }
+}
+
 /// Interpreta um evento de tecla do Slint (`KeyEvent`).
 pub fn parse_key_event(
     text: &str,
@@ -64,17 +136,19 @@ pub fn parse_key_event(
         return KeyCaptureOutcome::IgnoredModifierOnly;
     }
 
-    match trimmed {
-        "Escape" | "Key_Escape" => return KeyCaptureOutcome::Cancelled,
-        "BackSpace" | "Key_BackSpace" | "Delete" | "Key_Delete" => {
-            return KeyCaptureOutcome::ResetDefault;
+    let key_name = match map_slint_key_name(trimmed) {
+        Some(KeyInterpretation::Cancel) => return KeyCaptureOutcome::Cancelled,
+        Some(KeyInterpretation::ResetDefault) => return KeyCaptureOutcome::ResetDefault,
+        Some(KeyInterpretation::ModifierOnly) => return KeyCaptureOutcome::IgnoredModifierOnly,
+        Some(KeyInterpretation::Named(name)) => name.to_string(),
+        None => {
+            // Ignora códigos de controle não imprimíveis
+            if trimmed.chars().any(|c| c.is_control()) {
+                return KeyCaptureOutcome::IgnoredModifierOnly;
+            }
+            trimmed.to_ascii_uppercase()
         }
-        "Control" | "Alt" | "Shift" | "Meta" | "Super" | "AltGr" | "Shift_L" | "Shift_R"
-        | "Control_L" | "Control_R" | "Alt_L" | "Alt_R" => {
-            return KeyCaptureOutcome::IgnoredModifierOnly;
-        }
-        _ => {}
-    }
+    };
 
     let mut parts = Vec::new();
     if ctrl {
@@ -90,8 +164,7 @@ pub fn parse_key_event(
         parts.push("SUPER");
     }
 
-    let key_upper = trimmed.to_ascii_uppercase();
-    parts.push(&key_upper);
+    parts.push(&key_name);
 
     KeyCaptureOutcome::Captured(parts.join("+"))
 }
