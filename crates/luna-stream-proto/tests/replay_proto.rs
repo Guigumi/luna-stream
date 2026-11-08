@@ -29,11 +29,27 @@ fn replay_start_defaults_and_validation() {
     );
 
     let too_long = ReplayStartParams {
-        duration_secs: 601,
+        duration_secs: 1801,
         ..p.clone()
     };
     assert_eq!(
         too_long.validate().unwrap_err().code,
+        ErrorCode::InvalidParams as i32
+    );
+
+    let max_valid = ReplayStartParams {
+        duration_secs: 1800,
+        fps: 240,
+        ..p.clone()
+    };
+    assert!(max_valid.validate().is_ok());
+
+    let low_fps = ReplayStartParams {
+        fps: 10,
+        ..p.clone()
+    };
+    assert_eq!(
+        low_fps.validate().unwrap_err().code,
         ErrorCode::InvalidParams as i32
     );
 

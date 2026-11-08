@@ -85,3 +85,26 @@ pub fn default_config_dir() -> PathBuf {
         env::var_os("HOME").as_deref(),
     )
 }
+
+/// Resolve o diretório de cache baseando-se em `$XDG_CACHE_HOME/luna-stream`
+/// ou `$HOME/.cache/luna-stream`.
+pub fn cache_dir_from(xdg_cache_home: Option<&OsStr>, home: Option<&OsStr>) -> PathBuf {
+    if let Some(cache) = xdg_cache_home {
+        if !cache.is_empty() {
+            return PathBuf::from(cache).join("luna-stream");
+        }
+    }
+    if let Some(h) = home {
+        if !h.is_empty() {
+            return PathBuf::from(h).join(".cache").join("luna-stream");
+        }
+    }
+    env::temp_dir().join("luna-stream-cache")
+}
+
+/// Diretório padrão para cache do Luna Stream (`$XDG_CACHE_HOME/luna-stream` ou `~/.cache/luna-stream`).
+pub fn default_cache_dir() -> PathBuf {
+    let xdg = env::var_os("XDG_CACHE_HOME");
+    let home = env::var_os("HOME");
+    cache_dir_from(xdg.as_deref(), home.as_deref())
+}

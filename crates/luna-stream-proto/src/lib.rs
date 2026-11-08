@@ -19,6 +19,10 @@ pub mod methods {
     pub const REPLAY_SAVE: &str = "replay.save";
     pub const REPLAY_STATUS: &str = "replay.status";
     pub const REPLAY_STOP: &str = "replay.stop";
+    pub const SYSTEM_CAPABILITIES: &str = "system.capabilities";
+    pub const AUDIO_DEVICES: &str = "audio.devices";
+    pub const HOTKEYS_CONFIGURE: &str = "hotkeys.configure";
+    pub const MEDIA_INSPECT: &str = "media.inspect";
 }
 
 fn default_jsonrpc() -> String {
@@ -272,6 +276,8 @@ pub struct AudioConfig {
     pub microphone: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mic_device: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_device: Option<String>,
     #[serde(default = "default_true")]
     pub separate_tracks: bool,
 }
@@ -284,6 +290,7 @@ impl Default for AudioConfig {
             call: true,
             microphone: true,
             mic_device: None,
+            output_device: None,
             separate_tracks: true,
         }
     }
@@ -311,6 +318,21 @@ pub struct RecordStartParams {
     pub video: VideoRecordConfig,
     #[serde(default)]
     pub audio: AudioConfig,
+}
+
+impl Default for RecordStartParams {
+    fn default() -> Self {
+        Self {
+            output: None,
+            output_dir: None,
+            game_name: None,
+            format: ContainerFormat::default(),
+            source: SourceKind::default(),
+            fps: default_fps(),
+            video: VideoRecordConfig::default(),
+            audio: AudioConfig::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -394,13 +416,13 @@ impl Default for ReplayStartParams {
 
 impl ReplayStartParams {
     pub fn validate(&self) -> Result<(), RpcError> {
-        if self.duration_secs < 5 || self.duration_secs > 600 {
+        if self.duration_secs < 5 || self.duration_secs > 1800 {
             return Err(ErrorCode::InvalidParams.into());
         }
         if self.max_ram_mb < 64 {
             return Err(ErrorCode::InvalidParams.into());
         }
-        if self.fps == 0 || self.fps > 240 {
+        if self.fps < 15 || self.fps > 240 {
             return Err(ErrorCode::InvalidParams.into());
         }
         Ok(())
@@ -483,4 +505,57 @@ pub struct ReplayStatusResult {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReplayStopResult {
     pub discarded_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SystemCapabilitiesResult {
+    pub total_ram_mb: u64,
+    pub max_buffer_ram_mb: u32,
+    pub min_bitrate_kbps: u32,
+    pub max_bitrate_kbps: u32,
+    pub min_fps: u32,
+    pub max_fps: u32,
+    pub max_replay_secs: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encoder_kind: Option<EncoderKind>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AudioDeviceEntry {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct AudioDevicesResult {
+    pub inputs: Vec<AudioDeviceEntry>,
+    pub outputs: Vec<AudioDeviceEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HotkeysConfigureParams {
+    pub replay_trigger: String,
+    pub record_trigger: String,
+    #[serde(default)]
+    pub record_defaults: RecordStartParams,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HotkeysConfigureResult {
+    pub replay_bound: bool,
+    pub replay_trigger: String,
+    pub record_bound: bool,
+    pub record_trigger: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MediaInspectParams {
+    pub path: PathBuf,
+    pub thumb_output: PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MediaInspectResult {
+    pub duration_ms: u64,
+    pub thumb_written: bool,
 }

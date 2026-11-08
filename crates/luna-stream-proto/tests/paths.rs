@@ -53,3 +53,24 @@ fn config_dir_prefers_xdg_config_home_then_dot_config() {
         std::path::PathBuf::from("/home/u/.config/luna-stream")
     );
 }
+
+#[test]
+fn cache_dir_prefers_xdg_cache_home_then_dot_cache() {
+    use luna_stream_proto::paths::cache_dir_from;
+
+    assert_eq!(
+        cache_dir_from(
+            Some(OsStr::new("/custom/cache")),
+            Some(OsStr::new("/home/u"))
+        ),
+        std::path::PathBuf::from("/custom/cache/luna-stream")
+    );
+    assert_eq!(
+        cache_dir_from(None, Some(OsStr::new("/home/u"))),
+        std::path::PathBuf::from("/home/u/.cache/luna-stream")
+    );
+    assert_eq!(
+        cache_dir_from(Some(OsStr::new("")), Some(OsStr::new("/home/u"))),
+        std::path::PathBuf::from("/home/u/.cache/luna-stream")
+    );
+}

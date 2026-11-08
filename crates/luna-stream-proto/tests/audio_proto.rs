@@ -9,6 +9,7 @@ fn audio_config_defaults() {
     assert!(params.audio.call);
     assert!(params.audio.microphone);
     assert_eq!(params.audio.mic_device, None);
+    assert_eq!(params.audio.output_device, None);
 }
 
 #[test]
@@ -20,7 +21,8 @@ fn audio_config_custom() {
             "game": true,
             "call": false,
             "microphone": true,
-            "mic_device": "Fifine Mic"
+            "mic_device": "Fifine Mic",
+            "output_device": "alsa_output.usb-HyperX"
         }
     }"#;
     let params: RecordStartParams = serde_json::from_str(raw).expect("deserialize custom params");
@@ -29,6 +31,10 @@ fn audio_config_custom() {
     assert!(!params.audio.call);
     assert!(params.audio.microphone);
     assert_eq!(params.audio.mic_device.as_deref(), Some("Fifine Mic"));
+    assert_eq!(
+        params.audio.output_device.as_deref(),
+        Some("alsa_output.usb-HyperX")
+    );
 }
 
 #[test]
