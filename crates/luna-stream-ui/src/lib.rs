@@ -10,6 +10,7 @@ use crate::supervisor::{UiCommand, UiSnapshot};
 
 pub mod clips;
 pub mod config;
+pub mod keybind;
 pub mod single_instance;
 pub mod supervisor;
 pub mod tray;
@@ -94,6 +95,7 @@ pub fn read_preferences_from_window(window: &AppWindow) -> UiPreferences {
         audio_mic: window.get_pref_audio_mic(),
         clear_after_save: window.get_pref_clear_after_save(),
         start_minimized: window.get_pref_start_minimized(),
+        ..Default::default()
     }
 }
 
