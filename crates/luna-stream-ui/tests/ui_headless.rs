@@ -46,9 +46,17 @@ fn headless_ui_bindings_callbacks_and_slint_attribution_compliance() {
 
     app.set_pref_replay_duration_secs(60);
     app.set_pref_audio_call(false);
+    app.set_pref_quality("ultra".into());
     let prefs = read_preferences_from_window(&app);
     assert_eq!(prefs.replay_duration_secs, 60);
     assert!(!prefs.audio_call);
+    assert_eq!(prefs.quality, luna_stream_proto::QualityPreset::Ultra);
+
+    // Navega pelas abas 1 (Clipes) e 2 (Ajustes) sem falha
+    app.set_active_tab(1);
+    assert_eq!(app.get_active_tab(), 1);
+    app.set_active_tab(2);
+    assert_eq!(app.get_active_tab(), 2);
 }
 
 #[test]

@@ -20,6 +20,33 @@ fn parses_standard_collision_and_fallback_filenames() {
 }
 
 #[test]
+fn handles_multibyte_utf8_and_numbered_game_names_without_panic() {
+    // 1) Arquivos com caracteres multibyte que começam com Clip_ não devem causar pânico de fatia UTF-8
+    let res_utf8 = parse_clip_filename("Clip_Vídeo_de_Ação_12345.mp4");
+    assert!(res_utf8.is_some());
+
+    let res_jp = parse_clip_filename("Clip_日本語_ゲーム.mkv");
+    assert!(res_jp.is_some());
+
+    // 2) Jogos legítimos que terminam com número (ex: Counter-Strike 2, The Witcher 3)
+    // NÃO devem perder seu número no nome se não houver sufixo de colisão
+    assert_eq!(
+        parse_clip_filename("Clip_2026-11-07_20-15-03_Counter_Strike_2.mp4"),
+        Some(("Counter Strike 2".to_string(), "07/11 · 20:15".to_string()))
+    );
+    assert_eq!(
+        parse_clip_filename("Clip_2026-11-07_20-15-03_The_Witcher_3.mp4"),
+        Some(("The Witcher 3".to_string(), "07/11 · 20:15".to_string()))
+    );
+
+    // 3) Jogos com sufixo de colisão real (ex: _3 após o número do jogo) devem remover apenas a colisão
+    assert_eq!(
+        parse_clip_filename("Clip_2026-11-07_20-15-03_Counter_Strike_2_3.mp4"),
+        Some(("Counter Strike 2".to_string(), "07/11 · 20:15".to_string()))
+    );
+}
+
+#[test]
 fn deferred_delete_supports_undo_supersede_and_expiration() {
     let tmp = tempfile::tempdir().unwrap();
     let a = tmp.path().join("Clip_2026-11-07_19-00-00_Hades.mp4");

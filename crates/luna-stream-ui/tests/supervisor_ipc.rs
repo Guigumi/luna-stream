@@ -150,6 +150,7 @@ async fn supervisor_lifecycle_ipc_and_error_handling() {
             }),
         };
 
+        let clips_dir_for_test = clips_dir.clone();
         let cfg = SupervisorConfig {
             socket_path: sock_path,
             config_path: cfg_path,
@@ -178,6 +179,24 @@ async fn supervisor_lifecycle_ipc_and_error_handling() {
         {
             let snap = last_snapshot.lock().unwrap().clone();
             assert!(snap.last_saved_label.contains("Clip_2026-11-07_20-00-00_Valorant.mp4"));
+        }
+
+        // Simula clipe salvo externamente (ex: atalho ALT+F10 enquanto oculto na bandeja)
+        cmd_tx.send(UiCommand::WindowVisibilityChanged(false)).unwrap();
+        std::fs::create_dir_all(&clips_dir_for_test).unwrap();
+        let external_clip = clips_dir_for_test.join("Clip_2026-11-07_20-10-00_Apex.mp4");
+        std::fs::write(&external_clip, vec![0u8; 1024]).unwrap();
+
+        // Ao abrir a janela via ShowWindow, a lista de clipes deve ser atualizada imediatamente
+        cmd_tx.send(UiCommand::ShowWindow).unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+
+        {
+            let snap = last_snapshot.lock().unwrap().clone();
+            assert!(
+                snap.clips.iter().any(|c| c.game == "Apex"),
+                "clipe gravado por ALT+F10 deve refletir na UI ao abrir a janela"
+            );
         }
 
         // Testa encerramento

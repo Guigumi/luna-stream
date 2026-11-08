@@ -166,11 +166,23 @@ pub async fn run_supervisor(
                 match cmd {
                     UiCommand::ShowWindow => {
                         window_visible = true;
+                        poll_timer = tokio::time::interval(Duration::from_millis(1000));
+                        poll_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                        let _ = clip_mgr.refresh();
+                        snapshot.clips = clip_mgr.entries().to_vec();
                         (callbacks.on_show_window)();
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
                     UiCommand::WindowVisibilityChanged(v) => {
                         window_visible = v;
+                        let interval_ms = if window_visible { 1000 } else { 3000 };
+                        poll_timer = tokio::time::interval(Duration::from_millis(interval_ms));
+                        poll_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                        if window_visible {
+                            let _ = clip_mgr.refresh();
+                            snapshot.clips = clip_mgr.entries().to_vec();
+                            (callbacks.on_snapshot)(snapshot.clone());
+                        }
                     }
                     UiCommand::ToggleReplay => {
                         if snapshot.replay_active {
@@ -322,10 +334,23 @@ pub async fn run_supervisor(
                 }
             }
             _ = poll_timer.tick() => {
+                // Coleta status de processo filho spawned (evita processo zumbi e destrava auto-spawn)
+                if let Some(child) = spawned_child.as_mut()
+                    && let Ok(Some(_)) = child.try_wait()
+                {
+                    spawned_child = None;
+                }
+
                 // Checa expiração da exclusão diferida
                 if clip_mgr.has_pending_delete() {
                     let _ = clip_mgr.expire_if_due(Instant::now());
                     snapshot.undo_banner_visible = clip_mgr.has_pending_delete();
+                }
+
+                // Se a janela estiver visível, sincroniza lista de clipes para detectar gravações via atalho
+                if window_visible {
+                    let _ = clip_mgr.refresh();
+                    snapshot.clips = clip_mgr.entries().to_vec();
                 }
 
                 // Polling do motor
@@ -391,6 +416,7 @@ pub async fn run_supervisor(
                             }
                         }
                         Err(ClientError::NotRunning) => {
+                            spawned_child = None;
                             snapshot.daemon_connected = false;
                             snapshot.replay_active = false;
                             snapshot.recording = false;
@@ -426,6 +452,7 @@ pub async fn run_supervisor(
                             }
                         }
                         Err(ClientError::NotRunning) => {
+                            spawned_child = None;
                             snapshot.daemon_connected = false;
                             snapshot.replay_active = false;
                             snapshot.recording = false;

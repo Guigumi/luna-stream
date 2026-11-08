@@ -45,46 +45,52 @@ pub fn parse_clip_filename(file_name: &str) -> Option<(String, String)> {
     let stem = path.file_stem()?.to_str()?;
 
     // Verifica formato padrão: Clip_YYYY-MM-DD_HH-MM-SS_<Jogo>
-    if stem.starts_with("Clip_") && stem.len() >= 26 {
-        let date_part = &stem[5..15];
-        let sep1 = stem.as_bytes()[15];
-        let time_part = &stem[16..24];
-        let sep2 = stem.as_bytes()[24];
+    let bytes = stem.as_bytes();
+    if bytes.starts_with(b"Clip_") && bytes.len() >= 26 && bytes[15] == b'_' && bytes[24] == b'_' {
+        let date_bytes = &bytes[5..15];
+        let time_bytes = &bytes[16..24];
+        let is_date_ascii = date_bytes.iter().all(|b| b.is_ascii_digit() || *b == b'-');
+        let is_time_ascii = time_bytes.iter().all(|b| b.is_ascii_digit() || *b == b'-');
 
-        if sep1 == b'_'
-            && sep2 == b'_'
-            && date_part.chars().filter(|c| *c == '-').count() == 2
-            && time_part.chars().filter(|c| *c == '-').count() == 2
-        {
-            let date_tokens: Vec<&str> = date_part.split('-').collect();
-            let time_tokens: Vec<&str> = time_part.split('-').collect();
+        if is_date_ascii && is_time_ascii && stem.is_char_boundary(25) {
+            let date_part = &stem[5..15];
+            let time_part = &stem[16..24];
 
-            if date_tokens.len() == 3 && time_tokens.len() == 3 {
-                let recorded_at = format!(
-                    "{}/{} · {}:{}",
-                    date_tokens[2], date_tokens[1], time_tokens[0], time_tokens[1]
-                );
+            if date_part.chars().filter(|c| *c == '-').count() == 2
+                && time_part.chars().filter(|c| *c == '-').count() == 2
+            {
+                let date_tokens: Vec<&str> = date_part.split('-').collect();
+                let time_tokens: Vec<&str> = time_part.split('-').collect();
 
-                let game_raw = &stem[25..];
-                let mut tokens: Vec<&str> = game_raw.split('_').filter(|s| !s.is_empty()).collect();
+                if date_tokens.len() == 3 && time_tokens.len() == 3 {
+                    let recorded_at = format!(
+                        "{}/{} · {}:{}",
+                        date_tokens[2], date_tokens[1], time_tokens[0], time_tokens[1]
+                    );
 
-                // Se houver mais de um token e o último for numérico (ex: sufixo de colisão _2 ou _3),
-                // removemos apenas o sufixo numérico de colisão final.
-                if tokens.len() >= 2
-                    && let Some(last) = tokens.last()
-                    && let Ok(num) = last.parse::<u32>()
-                    && num >= 2
-                {
-                    tokens.pop();
+                    let game_raw = &stem[25..];
+                    let mut tokens: Vec<&str> =
+                        game_raw.split('_').filter(|s| !s.is_empty()).collect();
+
+                    // Se houver sufixo de colisão explícito (ex: _3 em Counter_Strike_2_3, onde o penúltimo também é numérico),
+                    // removemos apenas o sufixo numérico de colisão final para preservar nomes com números legítimos.
+                    if tokens.len() >= 3
+                        && let Some(last) = tokens.last()
+                        && let Ok(num) = last.parse::<u32>()
+                        && num >= 2
+                        && tokens[tokens.len() - 2].parse::<u32>().is_ok()
+                    {
+                        tokens.pop();
+                    }
+
+                    let game = if tokens.is_empty() {
+                        "Clipe".to_string()
+                    } else {
+                        tokens.join(" ")
+                    };
+
+                    return Some((game, recorded_at));
                 }
-
-                let game = if tokens.is_empty() {
-                    "Clipe".to_string()
-                } else {
-                    tokens.join(" ")
-                };
-
-                return Some((game, recorded_at));
             }
         }
     }

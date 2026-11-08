@@ -182,6 +182,44 @@ export component SettingsTab inherits ScrollView {
                 HorizontalLayout {
                     alignment: space-between;
                     Text {
+                        text: "Qualidade";
+                        color: Theme.text-secondary;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                    HorizontalLayout {
+                        spacing: 4px;
+                        for q in [
+                            { id: "ultra", label: "Ultra" },
+                            { id: "high", label: "Alta" },
+                            { id: "medium", label: "Média" },
+                            { id: "low", label: "Baixa" },
+                        ]: Rectangle {
+                            width: 50px;
+                            height: 24px;
+                            background: root.pref-quality == q.id ? Theme.accent : Theme.surface-elevated;
+                            border-radius: 4px;
+                            TouchArea {
+                                clicked => {
+                                    root.pref-quality = q.id;
+                                    root.preferences-changed();
+                                }
+                                Text {
+                                    text: q.label;
+                                    color: root.pref-quality == q.id ? #FFFFFF : Theme.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
                         text: "Taxa de quadros";
                         color: Theme.text-secondary;
                         font-size: 12px;
