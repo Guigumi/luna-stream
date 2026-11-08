@@ -8,8 +8,8 @@ use tokio::sync::mpsc;
 use crate::config::UiPreferences;
 use crate::supervisor::{UiCommand, UiSnapshot};
 
-pub mod clips;
 pub mod config;
+pub mod gallery;
 pub mod keybind;
 pub mod single_instance;
 pub mod supervisor;

@@ -12,8 +12,8 @@ use nix::unistd::Pid;
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 
-use crate::clips::{ClipEntry, ClipManager, format_size_mb};
 use crate::config::UiPreferences;
+use crate::gallery::{ClipEntry, ClipManager, format_size_mb};
 use crate::tray::{TrayController, TrayState};
 
 #[derive(Debug, Clone)]
