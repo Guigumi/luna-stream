@@ -2,11 +2,28 @@
 
 Motor nativo e leve para **transmitir, gravar e clipar** a tela, feito para as salas privadas da [Luna](https://lunagg.com.br).
 
-> **Status:** M0 (Fundação), M1 (Captura de Vídeo Linux), M2 (Áudio Linux multi-trilha), M3 (Gravação Longa e Fragmentada Anti-Crash com Layout OBS) e M4 (Replay Buffer em RAM e Clipes por Atalho Global) **100% concluídos e testados em hardware real**. Veja o [ROADMAP](ROADMAP.md), o [Gate M1](docs/testing/m1-manual.md), o [Gate M2](docs/testing/m2-manual.md), o [Gate M3](docs/testing/m3-manual.md) e o [Gate M4](docs/testing/m4-manual.md).
+> **Status:** M0 a M4 concluídos, e **App Nativo de Bandeja em Slint (`luna-stream`) entregue na v0.5.0** (< 30 MB RAM ocioso, 0 MB VRAM na GPU). Veja o [ROADMAP](ROADMAP.md), [ADR-0003](docs/adr/0003-toolkit-ui-nativa-slint.md) e o [Guia Manual da UI](docs/testing/slint-ui-manual.md).
 
 ## Como Testar
 
 Instale os pré-requisitos listados em [docs/dev-setup.md](docs/dev-setup.md), depois:
+
+### 1. Aplicativo Desktop Nativo (Slint + System Tray)
+
+```bash
+# Compilar e iniciar o app nativo (sobe o daemon automaticamente se necessário)
+cargo run -p luna-stream-ui
+
+# Ou iniciar minimizado direto na bandeja do sistema
+cargo run -p luna-stream-ui -- --minimized
+```
+
+- **Controle:** Ligue o Replay Buffer ou inicie a Gravação com 1 clique; salve clipes no botão ou via `ALT+F10`.
+- **Galeria:** Assista clipes gravados ou exclua com o botão *Desfazer* (6 segundos).
+- **Bandeja:** O ícone reflete o status em tempo real (violeta ocioso, esmeralda replay, carmesim gravação); fechar no `X` apenas recolhe para a bandeja.
+- **Zero VRAM em jogo:** Renderizador `winit-software` padrão não aloca contexto na GPU enquanto você joga.
+
+### 2. Controle via Linha de Comando (CLI)
 
 ```bash
 # 1. Compilar todo o workspace

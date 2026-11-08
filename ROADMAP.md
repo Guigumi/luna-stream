@@ -100,11 +100,11 @@ flowchart LR
 - **Saída:** transmitir + clipar com um único encode; Electron não captura mais nada.
 
 ### M7 — UI leve e visualizador sob demanda
-- App de bandeja nativo (GTK4 / Slint / egui — ADR) substituindo o Electron no dia a dia.
+- App de bandeja nativo em Slint + ksni (`crates/luna-stream-ui`, binário `luna-stream` entregue antecipadamente na `v0.5.0` para Replay Buffer, Gravação e Galeria de Clipes fora do Electron).
 - Visualizador abre só ao assistir alguém: assinatura manual, decode GPU; ao fechar, libera tudo.
 - Electron vira opcional/legado **só depois** de cobrir as [ideias herdadas do app atual](docs/plans/2026-11-05-ideias-electron.md).
 - Prévia leve na grade; vídeo completo assinado só ao abrir o palco.
-- **Saída:** metas da tabela "Visão final" atingidas e medidas.
+- **Saída:** metas da tabela "Visão final" atingidas e medidas (< 30 MB RAM, 0 MB VRAM gaming mode).
 
 ### M8 — Gate Linux ("100% e rodando muito bem")
 - Matriz testada: GNOME, KDE, Hyprland, Sway × AMD, Intel, NVIDIA × Wayland/X11.
@@ -137,5 +137,5 @@ flowchart LR
 |---|---|---|
 | ADR-1 | Licença do repo — **MIT (aceita)** | M0 |
 | ADR-2 | SDK Rust LiveKit vs `livekitwebrtcsink` (critério obrigatório: E2EE) | antes de M6 |
-| ADR-3 | Toolkit da UI nativa | antes de M7 |
+| ADR-3 | Toolkit da UI nativa — **Slint Royalty-Free 2.0 + ksni (aceita: ADR-0003)** | M5/M7 |
 | ADR-4 | Contrato IPC (JSON-RPC sobre unix socket) | M0 |
