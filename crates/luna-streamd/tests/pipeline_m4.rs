@@ -23,6 +23,7 @@ fn describe_producer_builds_parsable_mp4_and_mkv_appsink_pipelines() {
         call: true,
         microphone: true,
         mic_device: None,
+        output_device: None,
         separate_tracks: true,
     };
 

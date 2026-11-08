@@ -6,12 +6,14 @@ use std::time::Duration;
 use tracing::{debug, info, warn};
 
 use super::filter::{StreamCategory, StreamProps, classify};
+use luna_stream_proto::{AudioDeviceEntry, AudioDevicesResult};
 
 #[derive(Debug, Clone)]
 pub struct NodeInfo {
     pub id: u32,
     pub name: Option<String>,
     pub media_class: Option<String>,
+    pub description: Option<String>,
     pub stream_props: StreamProps,
 }
 
@@ -80,6 +82,12 @@ impl AudioGraph {
                     let process_id = props
                         .and_then(|p| p.get("application.process.id"))
                         .and_then(|v| v.as_u64().map(|n| n as u32));
+                    let description = props
+                        .and_then(|p| p.get("node.description"))
+                        .or_else(|| props.and_then(|p| p.get("node.nick")))
+                        .or_else(|| props.and_then(|p| p.get("node.name")))
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
 
                     graph.nodes.insert(
                         id,
@@ -87,6 +95,7 @@ impl AudioGraph {
                             id,
                             name: node_name.clone(),
                             media_class,
+                            description,
                             stream_props: StreamProps {
                                 application_name: app_name,
                                 binary_name,
@@ -197,6 +206,50 @@ impl AudioGraph {
             .filter(|p| p.node_id == node_id && p.direction == direction)
             .collect()
     }
+
+    /// Lista os dispositivos de entrada e saída reais do PipeWire, filtrando sinks internos.
+    pub fn list_audio_devices(&self) -> AudioDevicesResult {
+        let mut inputs = Vec::new();
+        let mut outputs = Vec::new();
+
+        for node in self.nodes.values() {
+            let class = node.media_class.as_deref().unwrap_or("");
+            let name = node.name.as_deref().unwrap_or("");
+            let label = node.description.as_deref().unwrap_or(name).to_string();
+
+            if class == "Audio/Source" {
+                inputs.push(AudioDeviceEntry {
+                    id: name.to_string(),
+                    label,
+                });
+            } else if class == "Audio/Sink" && name != "luna_game" && name != "luna_call" {
+                outputs.push(AudioDeviceEntry {
+                    id: name.to_string(),
+                    label,
+                });
+            }
+        }
+
+        inputs.sort_by(|a, b| a.label.cmp(&b.label));
+        outputs.sort_by(|a, b| a.label.cmp(&b.label));
+
+        AudioDevicesResult { inputs, outputs }
+    }
+}
+
+/// Executa `pw-dump` e retorna os dispositivos de entrada e saída detectados.
+pub fn query_pipewire_devices() -> AudioDevicesResult {
+    let output = match Command::new("pw-dump").output() {
+        Ok(o) if o.status.success() => o.stdout,
+        _ => return AudioDevicesResult::default(),
+    };
+    let json_str = match std::str::from_utf8(&output) {
+        Ok(s) => s,
+        Err(_) => return AudioDevicesResult::default(),
+    };
+    AudioGraph::from_json(json_str)
+        .map(|g| g.list_audio_devices())
+        .unwrap_or_default()
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

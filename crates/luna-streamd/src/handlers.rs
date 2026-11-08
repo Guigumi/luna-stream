@@ -72,6 +72,16 @@ impl Handler for Daemon {
                 serde_json::to_value(res)
                     .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
             }
+            methods::SYSTEM_CAPABILITIES => {
+                let caps = crate::capabilities::probe_system_capabilities();
+                serde_json::to_value(caps)
+                    .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
+            }
+            methods::AUDIO_DEVICES => {
+                let devices = crate::audio::router::query_pipewire_devices();
+                serde_json::to_value(devices)
+                    .map_err(|e| RpcError::new(ErrorCode::Internal as i32, e.to_string()))
+            }
             methods::RECORD_START => {
                 let start_params: RecordStartParams = serde_json::from_value(params)
                     .map_err(|e| RpcError::new(ErrorCode::InvalidParams as i32, e.to_string()))?;

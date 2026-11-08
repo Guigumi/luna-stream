@@ -192,7 +192,13 @@ fn game_audio_source_part(audio_src: AudioSourceKind, audio: &AudioConfig) -> St
         AudioSourceKind::Silence => "audiotestsrc is-live=true wave=silence".to_string(),
         AudioSourceKind::PipeWire => match audio.mode {
             SystemAudioMode::DesktopLoopback => {
-                r#"pulsesrc client-name="luna-audio-game" do-timestamp=true"#.to_string()
+                if let Some(sink) = audio.output_device.as_deref().filter(|s| !s.is_empty()) {
+                    format!(
+                        r#"pulsesrc client-name="luna-audio-game" device="{sink}.monitor" do-timestamp=true"#
+                    )
+                } else {
+                    r#"pulsesrc client-name="luna-audio-game" do-timestamp=true"#.to_string()
+                }
             }
             SystemAudioMode::Isolated => {
                 r#"pulsesrc client-name="luna-audio-game" device="luna_game.monitor" do-timestamp=true"#.to_string()
@@ -233,6 +239,7 @@ pub fn describe(src: &VideoSource, enc: &EncoderInfo, fps: u32, output: &Path) -
         call: false,
         microphone: false,
         mic_device: None,
+        output_device: None,
         separate_tracks: false,
     };
     describe_with_audio(

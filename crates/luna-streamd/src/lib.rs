@@ -1,6 +1,7 @@
 //! Daemon de captura e streaming nativo Luna Stream.
 
 pub mod audio;
+pub mod capabilities;
 pub mod encoder;
 pub mod handlers;
 pub mod hotkey;

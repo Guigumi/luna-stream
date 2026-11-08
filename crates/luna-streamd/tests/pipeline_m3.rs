@@ -32,6 +32,7 @@ async fn generates_fmp4_with_obs_audio_layout() {
         call: true,
         microphone: true,
         mic_device: None,
+        output_device: None,
         separate_tracks: true,
     };
 
@@ -97,6 +98,7 @@ async fn omits_separate_tracks_when_disabled() {
         call: true,
         microphone: true,
         mic_device: None,
+        output_device: None,
         separate_tracks: false,
     };
 
@@ -152,6 +154,7 @@ async fn generates_clusterized_mkv_with_opus() {
         call: false,
         microphone: true,
         mic_device: None,
+        output_device: None,
         separate_tracks: true,
     };
 

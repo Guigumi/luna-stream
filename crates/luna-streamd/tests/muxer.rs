@@ -34,6 +34,7 @@ async fn test_write_clip_offline_under_one_second() {
             call: true,
             microphone: true,
             mic_device: None,
+            output_device: None,
             separate_tracks: true,
         };
 
@@ -188,6 +189,7 @@ async fn test_live_record_muxer_lifecycle() {
             call: false,
             microphone: false,
             mic_device: None,
+            output_device: None,
             separate_tracks: false,
         };
 

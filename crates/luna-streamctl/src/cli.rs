@@ -364,6 +364,7 @@ pub fn build_audio_config(
             call: false,
             microphone: false,
             mic_device: None,
+            output_device: None,
             separate_tracks: false,
         };
     }
@@ -379,6 +380,7 @@ pub fn build_audio_config(
         call: !no_call,
         microphone: !no_mic,
         mic_device,
+        output_device: None,
         separate_tracks,
     }
 }

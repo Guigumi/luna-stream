@@ -47,6 +47,7 @@ async fn test_record_status_lifecycle() {
             call: false,
             microphone: false,
             mic_device: None,
+            output_device: None,
             separate_tracks: true,
         },
     };

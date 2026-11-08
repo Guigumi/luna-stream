@@ -33,6 +33,7 @@ async fn test_fmp4_resists_sigkill() {
         call: true,
         microphone: true,
         mic_device: None,
+        output_device: None,
         separate_tracks: true,
     };
 
@@ -121,6 +122,7 @@ async fn test_clusterized_mkv_resists_sigkill() {
         call: true,
         microphone: false,
         mic_device: None,
+        output_device: None,
         separate_tracks: true,
     };
 
