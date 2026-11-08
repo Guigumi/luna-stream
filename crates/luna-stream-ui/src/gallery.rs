@@ -108,7 +108,7 @@ pub enum SortOrder {
     Asc,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct GalleryFacets {
     pub years: Vec<String>,
     pub months: Vec<String>,

@@ -507,7 +507,7 @@ pub struct ReplayStopResult {
     pub discarded_ms: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct SystemCapabilitiesResult {
     pub total_ram_mb: u64,
     pub max_buffer_ram_mb: u32,

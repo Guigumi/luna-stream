@@ -3,9 +3,13 @@
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use luna_stream_proto::{EncoderListResult, RecordStatusResult, ReplayStatusResult, methods};
+use luna_stream_proto::{
+    AudioDeviceEntry, AudioDevicesResult, EncoderListResult, HotkeysConfigureResult,
+    MediaInspectResult, RecordStatusResult, ReplayStatusResult, SystemCapabilitiesResult, methods,
+    paths,
+};
 use luna_streamctl::client::{ClientError, call};
 use nix::sys::signal::{Signal, kill};
 use nix::unistd::Pid;
@@ -13,7 +17,11 @@ use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 
 use crate::config::UiPreferences;
-use crate::gallery::{ClipEntry, ClipManager, format_size_mb};
+use crate::gallery::{
+    ClipEntry, GalleryFacets, GalleryFilter, GalleryItem, GalleryManager, GallerySortField,
+    SortOrder, format_size_mb,
+};
+use crate::keybind::{format_hotkey_label, validate_hotkey_pair};
 use crate::tray::{TrayController, TrayState};
 
 #[derive(Debug, Clone)]
@@ -24,13 +32,32 @@ pub enum UiCommand {
     SaveClip,
     ToggleRecord,
     UpdatePreferences(UiPreferences),
-    RefreshClips,
-    OpenClip(PathBuf),
-    OpenClipsDir,
-    DeleteClip(PathBuf),
-    UndoDeleteClip,
+    CaptureHotkey {
+        for_record: bool,
+        trigger: String,
+    },
+    ResetDefaultHotkeys,
+    RefreshAudioDevices,
+    RefreshGallery,
+    UpdateGalleryFilter(GalleryFilter),
+    UpdateGallerySort {
+        field: GallerySortField,
+        order: SortOrder,
+    },
+    RequestDeleteMedia(PathBuf),
+    CancelDeleteMedia,
+    ConfirmDeleteMedia(PathBuf),
+    OpenMedia(PathBuf),
+    OpenCapturesDir,
     DismissError,
     Quit,
+
+    // Retrocompatibilidade
+    OpenClip(PathBuf),
+    OpenClipsDir,
+    RefreshClips,
+    DeleteClip(PathBuf),
+    UndoDeleteClip,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -53,6 +80,19 @@ pub struct UiSnapshot {
     pub clips: Vec<ClipEntry>,
     pub undo_banner_visible: bool,
     pub prefs: UiPreferences,
+
+    // v2
+    pub caps: SystemCapabilitiesResult,
+    pub audio_inputs: Vec<AudioDeviceEntry>,
+    pub audio_outputs: Vec<AudioDeviceEntry>,
+    pub gallery_items: Vec<GalleryItem>,
+    pub recent_items: Vec<GalleryItem>,
+    pub facets: GalleryFacets,
+    pub filter: GalleryFilter,
+    pub sort_field: GallerySortField,
+    pub sort_order: SortOrder,
+    pub confirming_delete_path: String,
+    pub profile_summary_label: String,
 }
 
 /// Traduz erros de transporte e códigos RPC do motor para mensagens claras em pt-BR.
@@ -113,6 +153,15 @@ pub struct SupervisorCallbacks {
     pub on_quit: Box<dyn FnMut() + Send>,
 }
 
+fn format_profile_summary(prefs: &UiPreferences) -> String {
+    format!(
+        "{} · {} fps · {} Kbps",
+        prefs.resolution.label(),
+        prefs.fps,
+        prefs.bitrate_kbps
+    )
+}
+
 pub async fn run_supervisor(
     cfg: SupervisorConfig,
     mut cmd_rx: mpsc::UnboundedReceiver<UiCommand>,
@@ -120,8 +169,15 @@ pub async fn run_supervisor(
     mut callbacks: SupervisorCallbacks,
 ) {
     let mut prefs = UiPreferences::load_from(&cfg.config_path);
-    let mut clip_mgr = ClipManager::new(cfg.clips_dir.clone());
-    let _ = clip_mgr.refresh();
+
+    let recordings_dir = cfg
+        .clips_dir
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| cfg.clips_dir.clone());
+    let cache_dir = paths::default_cache_dir().join("gallery");
+    let mut gallery_mgr = GalleryManager::new(recordings_dir, cfg.clips_dir.clone(), cache_dir);
+    let _ = gallery_mgr.refresh();
 
     let mut snapshot = UiSnapshot {
         daemon_connected: false,
@@ -130,23 +186,29 @@ pub async fn run_supervisor(
         replay_progress: 0,
         replay_buffer_label: "0s / 30s".to_string(),
         replay_ram_label: "0 MB / 512 MB".to_string(),
-        hotkey_label: "Alt+F10".to_string(),
+        hotkey_label: format_hotkey_label(&prefs.replay_hotkey),
         can_save_clip: false,
         saving_clip: false,
         last_saved_label: String::new(),
         recording: false,
-        record_status_label: format!(
-            "{} · {:?} · {} fps",
-            prefs.format.extension().to_uppercase(),
-            prefs.quality,
-            prefs.fps
-        ),
+        record_status_label: format_profile_summary(&prefs),
         shared_session: false,
         restart_hint: String::new(),
         error_banner: String::new(),
-        clips: clip_mgr.entries().to_vec(),
+        clips: Vec::new(),
         undo_banner_visible: false,
         prefs: prefs.clone(),
+        caps: SystemCapabilitiesResult::default(),
+        audio_inputs: Vec::new(),
+        audio_outputs: Vec::new(),
+        gallery_items: gallery_mgr.visible_items(),
+        recent_items: gallery_mgr.recent_items(3),
+        facets: gallery_mgr.facets(),
+        filter: GalleryFilter::default(),
+        sort_field: GallerySortField::Recent,
+        sort_order: SortOrder::Desc,
+        confirming_delete_path: String::new(),
+        profile_summary_label: format_profile_summary(&prefs),
     };
 
     let mut window_visible = true;
@@ -168,8 +230,11 @@ pub async fn run_supervisor(
                         window_visible = true;
                         poll_timer = tokio::time::interval(Duration::from_millis(1000));
                         poll_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-                        let _ = clip_mgr.refresh();
-                        snapshot.clips = clip_mgr.entries().to_vec();
+                        let _ = gallery_mgr.refresh();
+                        snapshot.gallery_items = gallery_mgr.visible_items();
+                        snapshot.recent_items = gallery_mgr.recent_items(3);
+                        snapshot.facets = gallery_mgr.facets();
+                        snapshot.confirming_delete_path.clear();
                         (callbacks.on_show_window)();
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
@@ -179,8 +244,11 @@ pub async fn run_supervisor(
                         poll_timer = tokio::time::interval(Duration::from_millis(interval_ms));
                         poll_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
                         if window_visible {
-                            let _ = clip_mgr.refresh();
-                            snapshot.clips = clip_mgr.entries().to_vec();
+                            let _ = gallery_mgr.refresh();
+                            snapshot.gallery_items = gallery_mgr.visible_items();
+                            snapshot.recent_items = gallery_mgr.recent_items(3);
+                            snapshot.facets = gallery_mgr.facets();
+                            snapshot.confirming_delete_path.clear();
                             (callbacks.on_snapshot)(snapshot.clone());
                         }
                     }
@@ -204,7 +272,7 @@ pub async fn run_supervisor(
                                     snapshot.error_banner.clear();
                                     snapshot.restart_hint.clear();
                                     if let Some(trigger) = res.get("hotkey_trigger").and_then(|v| v.as_str()) {
-                                        snapshot.hotkey_label = trigger.to_string();
+                                        snapshot.hotkey_label = format_hotkey_label(trigger);
                                     }
                                 }
                                 Err(e) => {
@@ -213,7 +281,7 @@ pub async fn run_supervisor(
                                 }
                             }
                         }
-                        sync_tray(&tray, &snapshot).await;
+                        sync_tray(&tray, &snapshot, &prefs).await;
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
                     UiCommand::SaveClip => {
@@ -228,8 +296,10 @@ pub async fn run_supervisor(
                                         let file_name = Path::new(p).file_name().and_then(|n| n.to_str()).unwrap_or("clipe");
                                         snapshot.last_saved_label = format!("Salvo: {file_name}");
                                     }
-                                    let _ = clip_mgr.refresh();
-                                    snapshot.clips = clip_mgr.entries().to_vec();
+                                    let _ = gallery_mgr.refresh();
+                                    snapshot.gallery_items = gallery_mgr.visible_items();
+                                    snapshot.recent_items = gallery_mgr.recent_items(3);
+                                    snapshot.facets = gallery_mgr.facets();
                                     snapshot.error_banner.clear();
                                 }
                                 Err(e) => {
@@ -264,7 +334,7 @@ pub async fn run_supervisor(
                                 }
                             }
                         }
-                        sync_tray(&tray, &snapshot).await;
+                        sync_tray(&tray, &snapshot, &prefs).await;
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
                     UiCommand::UpdatePreferences(new_prefs) => {
@@ -276,40 +346,119 @@ pub async fn run_supervisor(
                         prefs = new_prefs;
                         let _ = prefs.save_to(&cfg.config_path);
                         snapshot.prefs = prefs.clone();
+                        snapshot.profile_summary_label = format_profile_summary(&prefs);
+                        let hk_val = serde_json::to_value(prefs.to_hotkeys_configure_params()).unwrap_or_default();
+                        let _ = call(&cfg.socket_path, methods::HOTKEYS_CONFIGURE, hk_val).await;
+                        sync_tray(&tray, &snapshot, &prefs).await;
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
-                    UiCommand::RefreshClips => {
-                        let _ = clip_mgr.refresh();
-                        snapshot.clips = clip_mgr.entries().to_vec();
-                        snapshot.undo_banner_visible = clip_mgr.has_pending_delete();
+                    UiCommand::CaptureHotkey { for_record, trigger } => {
+                        let other = if for_record {
+                            &prefs.replay_hotkey
+                        } else {
+                            &prefs.record_hotkey
+                        };
+                        match validate_hotkey_pair(&trigger, other) {
+                            Ok(valid) => {
+                                if for_record {
+                                    prefs.record_hotkey = valid;
+                                } else {
+                                    prefs.replay_hotkey = valid;
+                                }
+                                let _ = prefs.save_to(&cfg.config_path);
+                                snapshot.prefs = prefs.clone();
+                                let hk_val = serde_json::to_value(prefs.to_hotkeys_configure_params()).unwrap_or_default();
+                                let _ = call(&cfg.socket_path, methods::HOTKEYS_CONFIGURE, hk_val).await;
+                                snapshot.hotkey_label = format_hotkey_label(&prefs.replay_hotkey);
+                                snapshot.error_banner.clear();
+                                sync_tray(&tray, &snapshot, &prefs).await;
+                            }
+                            Err(err_msg) => {
+                                snapshot.error_banner = err_msg.to_string();
+                            }
+                        }
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
-                    UiCommand::OpenClip(path) => {
-                        let _ = ClipManager::open_clip(&path);
+                    UiCommand::ResetDefaultHotkeys => {
+                        prefs.replay_hotkey = crate::keybind::DEFAULT_REPLAY_HOTKEY.to_string();
+                        prefs.record_hotkey = crate::keybind::DEFAULT_RECORD_HOTKEY.to_string();
+                        let _ = prefs.save_to(&cfg.config_path);
+                        snapshot.prefs = prefs.clone();
+                        let hk_val = serde_json::to_value(prefs.to_hotkeys_configure_params()).unwrap_or_default();
+                        let _ = call(&cfg.socket_path, methods::HOTKEYS_CONFIGURE, hk_val).await;
+                        snapshot.hotkey_label = format_hotkey_label(&prefs.replay_hotkey);
+                        snapshot.error_banner.clear();
+                        sync_tray(&tray, &snapshot, &prefs).await;
+                        (callbacks.on_snapshot)(snapshot.clone());
                     }
-                    UiCommand::OpenClipsDir => {
-                        let _ = clip_mgr.open_clips_dir();
+                    UiCommand::RefreshAudioDevices => {
+                        if let Ok(res) = call(&cfg.socket_path, methods::AUDIO_DEVICES, serde_json::Value::Null).await
+                            && let Ok(devs) = serde_json::from_value::<AudioDevicesResult>(res)
+                        {
+                            snapshot.audio_inputs = devs.inputs;
+                            snapshot.audio_outputs = devs.outputs;
+                        }
+                        (callbacks.on_snapshot)(snapshot.clone());
                     }
-                    UiCommand::DeleteClip(path) => {
-                        let _ = clip_mgr.stage_delete(&path, Instant::now());
-                        snapshot.clips = clip_mgr.entries().to_vec();
-                        snapshot.undo_banner_visible = true;
+                    UiCommand::RefreshGallery | UiCommand::RefreshClips => {
+                        let _ = gallery_mgr.refresh();
+                        snapshot.gallery_items = gallery_mgr.visible_items();
+                        snapshot.recent_items = gallery_mgr.recent_items(3);
+                        snapshot.facets = gallery_mgr.facets();
+                        snapshot.confirming_delete_path.clear();
+                        (callbacks.on_snapshot)(snapshot.clone());
+                    }
+                    UiCommand::UpdateGalleryFilter(f) => {
+                        gallery_mgr.set_filter(f.clone());
+                        snapshot.filter = f;
+                        snapshot.gallery_items = gallery_mgr.visible_items();
+                        snapshot.confirming_delete_path.clear();
+                        (callbacks.on_snapshot)(snapshot.clone());
+                    }
+                    UiCommand::UpdateGallerySort { field, order } => {
+                        gallery_mgr.set_sort(field, order);
+                        snapshot.sort_field = field;
+                        snapshot.sort_order = order;
+                        snapshot.gallery_items = gallery_mgr.visible_items();
+                        snapshot.confirming_delete_path.clear();
+                        (callbacks.on_snapshot)(snapshot.clone());
+                    }
+                    UiCommand::RequestDeleteMedia(path) | UiCommand::DeleteClip(path) => {
+                        gallery_mgr.request_delete(&path);
+                        snapshot.confirming_delete_path = path.to_string_lossy().to_string();
+                        (callbacks.on_snapshot)(snapshot.clone());
+                    }
+                    UiCommand::CancelDeleteMedia => {
+                        gallery_mgr.cancel_delete();
+                        snapshot.confirming_delete_path.clear();
+                        (callbacks.on_snapshot)(snapshot.clone());
+                    }
+                    UiCommand::ConfirmDeleteMedia(path) => {
+                        if let Ok(deleted) = gallery_mgr.confirm_delete(&path)
+                            && deleted
+                        {
+                            snapshot.confirming_delete_path.clear();
+                            snapshot.gallery_items = gallery_mgr.visible_items();
+                            snapshot.recent_items = gallery_mgr.recent_items(3);
+                            snapshot.facets = gallery_mgr.facets();
+                        }
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
                     UiCommand::UndoDeleteClip => {
-                        if clip_mgr.undo_delete() {
-                            snapshot.clips = clip_mgr.entries().to_vec();
-                            snapshot.undo_banner_visible = false;
-                            (callbacks.on_snapshot)(snapshot.clone());
-                        }
+                        // Não utilizado no modo confirmação dupla inline
+                    }
+                    UiCommand::OpenMedia(path) | UiCommand::OpenClip(path) => {
+                        let _ = Command::new("xdg-open").arg(path).spawn();
+                    }
+                    UiCommand::OpenCapturesDir | UiCommand::OpenClipsDir => {
+                        let target = cfg.clips_dir.parent().unwrap_or(&cfg.clips_dir);
+                        let _ = Command::new("xdg-open").arg(target).spawn();
                     }
                     UiCommand::DismissError => {
                         snapshot.error_banner.clear();
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
                     UiCommand::Quit => {
-                        // Encerramento limpo em sequência
-                        let _ = clip_mgr.flush_pending();
                         if snapshot.recording {
                             let _ = tokio::time::timeout(
                                 Duration::from_secs(3),
@@ -334,31 +483,18 @@ pub async fn run_supervisor(
                 }
             }
             _ = poll_timer.tick() => {
-                // Coleta status de processo filho spawned (evita processo zumbi e destrava auto-spawn)
                 if let Some(child) = spawned_child.as_mut()
                     && let Ok(Some(_)) = child.try_wait()
                 {
                     spawned_child = None;
                 }
 
-                // Checa expiração da exclusão diferida
-                if clip_mgr.has_pending_delete() {
-                    let _ = clip_mgr.expire_if_due(Instant::now());
-                    snapshot.undo_banner_visible = clip_mgr.has_pending_delete();
-                }
-
-                // Se a janela estiver visível, sincroniza lista de clipes para detectar gravações via atalho
-                if window_visible {
-                    let _ = clip_mgr.refresh();
-                    snapshot.clips = clip_mgr.entries().to_vec();
-                }
-
-                // Polling do motor
+                // Conexão e inicialização com o daemon
                 if !snapshot.daemon_connected {
                     match call(&cfg.socket_path, methods::PING, serde_json::Value::Null).await {
                         Ok(_) => {
                             snapshot.daemon_connected = true;
-                            // Busca lista de encoders
+
                             if let Ok(res) = call(&cfg.socket_path, methods::ENCODER_LIST, serde_json::Value::Null).await
                                 && let Ok(info) = serde_json::from_value::<EncoderListResult>(res)
                                 && let Some(selected) = info.selected
@@ -369,6 +505,29 @@ pub async fn run_supervisor(
                                         luna_stream_proto::EncoderKind::Software => "Software",
                                     }).unwrap_or("GPU");
                                 snapshot.encoder_label = format!("{selected} · {kind}");
+                            }
+
+                            if let Ok(res) = call(&cfg.socket_path, methods::SYSTEM_CAPABILITIES, serde_json::Value::Null).await
+                                && let Ok(c) = serde_json::from_value::<SystemCapabilitiesResult>(res)
+                            {
+                                prefs = prefs.sanitize_with_caps(&c);
+                                snapshot.caps = c;
+                                snapshot.prefs = prefs.clone();
+                                snapshot.profile_summary_label = format_profile_summary(&prefs);
+                            }
+
+                            if let Ok(res) = call(&cfg.socket_path, methods::AUDIO_DEVICES, serde_json::Value::Null).await
+                                && let Ok(devs) = serde_json::from_value::<AudioDevicesResult>(res)
+                            {
+                                snapshot.audio_inputs = devs.inputs;
+                                snapshot.audio_outputs = devs.outputs;
+                            }
+
+                            let hk_val = serde_json::to_value(prefs.to_hotkeys_configure_params()).unwrap_or_default();
+                            if let Ok(res) = call(&cfg.socket_path, methods::HOTKEYS_CONFIGURE, hk_val).await
+                                && let Ok(hk_res) = serde_json::from_value::<HotkeysConfigureResult>(res)
+                            {
+                                snapshot.hotkey_label = format_hotkey_label(&hk_res.replay_trigger);
                             }
                         }
                         Err(ClientError::NotRunning) => {
@@ -408,7 +567,11 @@ pub async fn run_supervisor(
                                     snapshot.replay_buffer_label = format!("{secs}s / {}s", st.duration_secs);
                                     let ram_formatted = format_size_mb(st.ram_bytes);
                                     snapshot.replay_ram_label = format!("{ram_formatted} / {} MB", st.max_ram_mb);
-                                    snapshot.hotkey_label = if st.hotkey_bound { "Alt+F10".to_string() } else { "Atalho indisponível".to_string() };
+                                    snapshot.hotkey_label = if st.hotkey_bound {
+                                        format_hotkey_label(&prefs.replay_hotkey)
+                                    } else {
+                                        "Atalho indisponível".to_string()
+                                    };
                                 }
                                 if let Some(err) = st.last_error {
                                     snapshot.error_banner = err;
@@ -439,12 +602,7 @@ pub async fn run_supervisor(
                                     let size_str = format_size_mb(st.bytes_written);
                                     snapshot.record_status_label = format!("{h:02}:{m:02}:{s:02} · {size_str}");
                                 } else {
-                                    snapshot.record_status_label = format!(
-                                        "{} · {:?} · {} fps",
-                                        prefs.format.extension().to_uppercase(),
-                                        prefs.quality,
-                                        prefs.fps
-                                    );
+                                    snapshot.record_status_label = format_profile_summary(&prefs);
                                 }
                                 if let Some(err) = st.last_error {
                                     snapshot.error_banner = err;
@@ -461,10 +619,35 @@ pub async fn run_supervisor(
                     }
 
                     snapshot.shared_session = snapshot.replay_active && snapshot.recording;
-                    sync_tray(&tray, &snapshot).await;
+
+                    // Fila de extração sequencial de thumbnails e duração (1 por tick)
+                    if window_visible
+                        && let Some((video_path, thumb_target)) = gallery_mgr.next_unprobed()
+                    {
+                        let params = serde_json::json!({
+                            "path": video_path,
+                            "thumb_output": thumb_target,
+                        });
+                        match call(&cfg.socket_path, methods::MEDIA_INSPECT, params).await {
+                            Ok(res) => {
+                                if let Ok(insp) = serde_json::from_value::<MediaInspectResult>(res) {
+                                    gallery_mgr.record_probe_result(&video_path, insp.duration_ms, insp.thumb_written);
+                                } else {
+                                    gallery_mgr.record_probe_result(&video_path, 0, false);
+                                }
+                            }
+                            Err(_) => {
+                                gallery_mgr.record_probe_result(&video_path, 0, false);
+                            }
+                        }
+                        snapshot.gallery_items = gallery_mgr.visible_items();
+                        snapshot.recent_items = gallery_mgr.recent_items(3);
+                        snapshot.facets = gallery_mgr.facets();
+                    }
+
+                    sync_tray(&tray, &snapshot, &prefs).await;
                 }
 
-                // Notifica a janela apenas se visível (economia de recursos quando recolhido)
                 if window_visible {
                     (callbacks.on_snapshot)(snapshot.clone());
                 }
@@ -473,12 +656,14 @@ pub async fn run_supervisor(
     }
 }
 
-async fn sync_tray(tray: &Option<TrayController>, snapshot: &UiSnapshot) {
+async fn sync_tray(tray: &Option<TrayController>, snapshot: &UiSnapshot, prefs: &UiPreferences) {
     if let Some(t) = tray {
         t.update(TrayState {
             replay_active: snapshot.replay_active,
             can_save_clip: snapshot.can_save_clip,
             recording: snapshot.recording,
+            replay_hotkey_label: format_hotkey_label(&prefs.replay_hotkey),
+            record_hotkey_label: format_hotkey_label(&prefs.record_hotkey),
         })
         .await;
     }

@@ -11,6 +11,7 @@ fn visual_state_precedence_and_distinct_argb32_pixmaps() {
         replay_active: true,
         can_save_clip: true,
         recording: false,
+        ..Default::default()
     };
     assert_eq!(replay.visual_state(), TrayVisualState::ReplayActive);
 
@@ -18,6 +19,7 @@ fn visual_state_precedence_and_distinct_argb32_pixmaps() {
         replay_active: true,
         can_save_clip: true,
         recording: true,
+        ..Default::default()
     };
     assert_eq!(both.visual_state(), TrayVisualState::Recording);
 
@@ -33,20 +35,53 @@ fn visual_state_precedence_and_distinct_argb32_pixmaps() {
 }
 
 #[test]
-fn tray_menu_reflects_pt_br_labels_and_save_clip_enabled_state() {
+fn tray_menu_reflects_pt_br_labels_and_dynamic_hotkeys() {
     let (tx, _rx) = mpsc::unbounded_channel();
-    let tray_idle = LunaTray::new(TrayState::default(), tx.clone());
-    let menu_idle = tray_idle.menu();
-    assert!(menu_idle.len() >= 6);
+    let tray_default = LunaTray::new(TrayState::default(), tx.clone());
+    let menu_default = tray_default.menu();
+    assert!(menu_default.len() >= 6);
 
-    let tray_active = LunaTray::new(
+    // Binds customizados no TrayState
+    let tray_custom = LunaTray::new(
         TrayState {
             replay_active: true,
             can_save_clip: true,
-            recording: true,
+            recording: false,
+            replay_hotkey_label: "Ctrl + F8".into(),
+            record_hotkey_label: "Ctrl + F9".into(),
         },
         tx,
     );
-    assert_eq!(tray_active.id(), "luna-stream");
-    assert_eq!(tray_active.title(), "Luna Stream");
+    assert_eq!(tray_custom.id(), "luna-stream");
+    assert_eq!(tray_custom.title(), "Luna Stream");
+
+    // Verifica que o menu contém rótulos dinâmicos com os atalhos
+    let menu_custom = tray_custom.menu();
+    let labels: Vec<String> = menu_custom
+        .into_iter()
+        .filter_map(|item| match item {
+            ksni::MenuItem::Standard(s) => Some(s.label),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        labels
+            .iter()
+            .any(|l| l.contains("Salvar clipe (Ctrl + F8)")),
+        "menu deve conter bind de replay nos rótulos: {:?}",
+        labels
+    );
+    assert!(
+        labels
+            .iter()
+            .any(|l| l.contains("Iniciar gravação (Ctrl + F9)")),
+        "menu deve conter bind de gravação nos rótulos: {:?}",
+        labels
+    );
+    assert!(
+        labels.iter().any(|l| l.contains("Abrir pasta de capturas")),
+        "menu deve conter opção de abrir capturas: {:?}",
+        labels
+    );
 }

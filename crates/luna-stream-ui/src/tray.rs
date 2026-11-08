@@ -23,11 +23,25 @@ pub enum TrayVisualState {
     Recording,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrayState {
     pub replay_active: bool,
     pub can_save_clip: bool,
     pub recording: bool,
+    pub replay_hotkey_label: String,
+    pub record_hotkey_label: String,
+}
+
+impl Default for TrayState {
+    fn default() -> Self {
+        Self {
+            replay_active: false,
+            can_save_clip: false,
+            recording: false,
+            replay_hotkey_label: "Alt + F8".into(),
+            record_hotkey_label: "Alt + F9".into(),
+        }
+    }
 }
 
 impl TrayState {
@@ -150,8 +164,9 @@ impl Tray for LunaTray {
         }
         .into();
 
+        let save_label = format!("Salvar clipe ({})", self.state.replay_hotkey_label);
         let save_item = StandardItem {
-            label: "Salvar clipe (Alt+F10)".into(),
+            label: save_label,
             enabled: self.state.replay_active && self.state.can_save_clip,
             activate: Box::new({
                 let tx = tx.clone();
@@ -181,12 +196,12 @@ impl Tray for LunaTray {
         .into();
 
         let record_label = if self.state.recording {
-            "Parar gravação"
+            format!("Parar gravação ({})", self.state.record_hotkey_label)
         } else {
-            "Iniciar gravação"
+            format!("Iniciar gravação ({})", self.state.record_hotkey_label)
         };
         let record_item = StandardItem {
-            label: record_label.into(),
+            label: record_label,
             activate: Box::new({
                 let tx = tx.clone();
                 move |_| {
@@ -198,7 +213,7 @@ impl Tray for LunaTray {
         .into();
 
         let clips_item = StandardItem {
-            label: "Abrir pasta de clipes".into(),
+            label: "Abrir pasta de capturas".into(),
             activate: Box::new({
                 let tx = tx.clone();
                 move |_| {

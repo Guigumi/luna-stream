@@ -5,22 +5,28 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
 use tokio::sync::mpsc;
 
+use luna_stream_ui::gallery::MediaKind;
 use luna_stream_ui::supervisor::{
     SupervisorCallbacks, SupervisorConfig, UiCommand, UiSnapshot, format_rpc_error_pt_br,
     run_supervisor,
 };
 
 #[tokio::test]
-async fn supervisor_lifecycle_ipc_and_error_handling() {
-    tokio::time::timeout(Duration::from_secs(10), async {
+async fn supervisor_lifecycle_ipc_and_gallery_v2() {
+    tokio::time::timeout(Duration::from_secs(12), async {
         let tmp = tempfile::tempdir().unwrap();
         let sock_path = tmp.path().join("daemon.sock");
         let cfg_path = tmp.path().join("ui.json");
-        let clips_dir = tmp.path().join("Clips");
+        let recordings_dir = tmp.path().join("Luna");
+        let clips_dir = recordings_dir.join("Clips");
+        let cache_dir = tmp.path().join("cache");
+
+        std::fs::create_dir_all(&clips_dir).unwrap();
+        std::fs::create_dir_all(&cache_dir).unwrap();
 
         let listener = UnixListener::bind(&sock_path).unwrap();
 
-        // Servidor Unix socket simulando respostas do luna-streamd
+        // Servidor Unix socket simulando respostas v2 do daemon
         let server_task = tokio::spawn(async move {
             while let Ok((stream, _)) = listener.accept().await {
                 tokio::spawn(async move {
@@ -41,7 +47,7 @@ async fn supervisor_lifecycle_ipc_and_error_handling() {
                                 serde_json::json!({
                                     "jsonrpc": "2.0",
                                     "id": id,
-                                    "result": { "version": "0.4.0", "protocol": 1 }
+                                    "result": { "version": "0.6.0", "protocol": 1 }
                                 })
                             }
                             "encoder.list" => {
@@ -54,13 +60,52 @@ async fn supervisor_lifecycle_ipc_and_error_handling() {
                                     }
                                 })
                             }
+                            "system.capabilities" => {
+                                serde_json::json!({
+                                    "jsonrpc": "2.0",
+                                    "id": id,
+                                    "result": {
+                                        "total_ram_mb": 16384,
+                                        "max_buffer_ram_mb": 8192,
+                                        "encoder_kind": "hardware",
+                                        "min_bitrate_kbps": 1000,
+                                        "max_bitrate_kbps": 150000,
+                                        "min_fps": 15,
+                                        "max_fps": 240,
+                                        "max_replay_secs": 1800
+                                    }
+                                })
+                            }
+                            "audio.devices" => {
+                                serde_json::json!({
+                                    "jsonrpc": "2.0",
+                                    "id": id,
+                                    "result": {
+                                        "inputs": [{ "id": "alsa_input.usb-Fifine", "label": "Fifine Mic" }],
+                                        "outputs": [{ "id": "alsa_output.usb-HyperX", "label": "HyperX Cloud" }]
+                                    }
+                                })
+                            }
+                            "hotkeys.configure" => {
+                                let p = &req["params"];
+                                serde_json::json!({
+                                    "jsonrpc": "2.0",
+                                    "id": id,
+                                    "result": {
+                                        "replay_bound": true,
+                                        "replay_trigger": p["replay_trigger"].as_str().unwrap_or("ALT+F8"),
+                                        "record_bound": true,
+                                        "record_trigger": p["record_trigger"].as_str().unwrap_or("ALT+F9")
+                                    }
+                                })
+                            }
                             "replay.status" => {
                                 serde_json::json!({
                                     "jsonrpc": "2.0",
                                     "id": id,
                                     "result": {
                                         "active": true,
-                                        "buffered_ms": 20000,
+                                        "buffered_ms": 15000,
                                         "ram_bytes": 100 * 1024 * 1024,
                                         "duration_secs": 30,
                                         "max_ram_mb": 512,
@@ -81,37 +126,22 @@ async fn supervisor_lifecycle_ipc_and_error_handling() {
                                     }
                                 })
                             }
-                            "replay.start" => {
+                            "media.inspect" => {
+                                let out = req["params"]["thumb_output"].as_str().unwrap_or("");
+                                if !out.is_empty() {
+                                    let p = std::path::Path::new(out);
+                                    if let Some(parent) = p.parent() {
+                                        let _ = std::fs::create_dir_all(parent);
+                                    }
+                                    let _ = std::fs::write(p, b"mock-png");
+                                }
                                 serde_json::json!({
                                     "jsonrpc": "2.0",
                                     "id": id,
                                     "result": {
-                                        "encoder": "vah264enc",
-                                        "duration_secs": 30,
-                                        "max_ram_mb": 512,
-                                        "shared_session": false,
-                                        "hotkey_bound": true,
-                                        "hotkey_trigger": "ALT+F10"
+                                        "duration_ms": 25000,
+                                        "thumb_written": true
                                     }
-                                })
-                            }
-                            "replay.save" => {
-                                serde_json::json!({
-                                    "jsonrpc": "2.0",
-                                    "id": id,
-                                    "result": {
-                                        "path": "/tmp/Clip_2026-11-07_20-00-00_Valorant.mp4",
-                                        "duration_ms": 20000,
-                                        "bytes_written": 5000000,
-                                        "elapsed_ms": 250
-                                    }
-                                })
-                            }
-                            "replay.stop" => {
-                                serde_json::json!({
-                                    "jsonrpc": "2.0",
-                                    "id": id,
-                                    "result": { "discarded_ms": 20000 }
                                 })
                             }
                             _ => {
@@ -132,6 +162,10 @@ async fn supervisor_lifecycle_ipc_and_error_handling() {
             }
         });
 
+        // Cria previamente um arquivo de clipe
+        let test_clip = clips_dir.join("Clip_2026-11-08_14-30-00_Valorant.mp4");
+        std::fs::write(&test_clip, vec![0u8; 10000]).unwrap();
+
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let last_snapshot = Arc::new(Mutex::new(UiSnapshot::default()));
         let snap_ref = last_snapshot.clone();
@@ -150,59 +184,83 @@ async fn supervisor_lifecycle_ipc_and_error_handling() {
             }),
         };
 
-        let clips_dir_for_test = clips_dir.clone();
         let cfg = SupervisorConfig {
             socket_path: sock_path,
             config_path: cfg_path,
-            clips_dir,
+            clips_dir: clips_dir.clone(),
             daemon_bin_override: None,
             auto_spawn: false,
         };
 
         let sup_task = tokio::spawn(run_supervisor(cfg, cmd_rx, None, callbacks));
 
-        // Aguarda conexão e primeiro tick de status
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        // Aguarda conexão e consulta inicial de capabilities, devices e media.inspect
+        tokio::time::sleep(Duration::from_millis(800)).await;
 
         {
             let snap = last_snapshot.lock().unwrap().clone();
             assert!(snap.daemon_connected);
-            assert_eq!(snap.encoder_label, "vah264enc · GPU");
-            assert!(snap.replay_active);
-            assert_eq!(snap.replay_buffer_label, "20s / 30s");
+            assert_eq!(snap.caps.max_bitrate_kbps, 150000);
+            assert_eq!(snap.audio_inputs.len(), 1);
+            assert_eq!(snap.audio_outputs.len(), 1);
+            assert_eq!(snap.audio_inputs[0].label, "Fifine Mic");
+
+            // Verifica galeria
+            assert_eq!(snap.gallery_items.len(), 1);
+            assert_eq!(snap.gallery_items[0].title, "Valorant");
+            assert_eq!(snap.gallery_items[0].duration_ms, 25000);
+            assert_eq!(snap.gallery_items[0].kind, MediaKind::Clip);
+            assert!(snap.gallery_items[0].probed);
+            assert_eq!(snap.recent_items.len(), 1);
         }
 
-        // Testa envio de comando SaveClip
-        cmd_tx.send(UiCommand::SaveClip).unwrap();
-        tokio::time::sleep(Duration::from_millis(300)).await;
-
-        {
-            let snap = last_snapshot.lock().unwrap().clone();
-            assert!(snap.last_saved_label.contains("Clip_2026-11-07_20-00-00_Valorant.mp4"));
-        }
-
-        // Simula clipe salvo externamente (ex: atalho ALT+F10 enquanto oculto na bandeja)
-        cmd_tx.send(UiCommand::WindowVisibilityChanged(false)).unwrap();
-        std::fs::create_dir_all(&clips_dir_for_test).unwrap();
-        let external_clip = clips_dir_for_test.join("Clip_2026-11-07_20-10-00_Apex.mp4");
-        std::fs::write(&external_clip, vec![0u8; 1024]).unwrap();
-
-        // Ao abrir a janela via ShowWindow, a lista de clipes deve ser atualizada imediatamente
-        cmd_tx.send(UiCommand::ShowWindow).unwrap();
+        // Teste de rejeição de atalho duplicado
+        cmd_tx
+            .send(UiCommand::CaptureHotkey {
+                for_record: true,
+                trigger: "ALT+F8".into(), // mesmo do replay -> conflito!
+            })
+            .unwrap();
         tokio::time::sleep(Duration::from_millis(300)).await;
 
         {
             let snap = last_snapshot.lock().unwrap().clone();
             assert!(
-                snap.clips.iter().any(|c| c.game == "Apex"),
-                "clipe gravado por ALT+F10 deve refletir na UI ao abrir a janela"
+                snap.error_banner.contains("já está em uso"),
+                "deve alertar sobre atalho em uso: {}",
+                snap.error_banner
             );
         }
 
-        // Testa encerramento
-        cmd_tx.send(UiCommand::Quit).unwrap();
+        // Teste de exclusão em duas etapas
+        // 1. Request
+        cmd_tx
+            .send(UiCommand::RequestDeleteMedia(test_clip.clone()))
+            .unwrap();
         tokio::time::sleep(Duration::from_millis(200)).await;
 
+        {
+            let snap = last_snapshot.lock().unwrap().clone();
+            assert_eq!(snap.confirming_delete_path, test_clip.to_string_lossy());
+            assert!(test_clip.exists(), "arquivo ainda deve existir no 1º passo");
+        }
+
+        // 2. Confirm
+        cmd_tx
+            .send(UiCommand::ConfirmDeleteMedia(test_clip.clone()))
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+
+        {
+            let snap = last_snapshot.lock().unwrap().clone();
+            assert!(snap.confirming_delete_path.is_empty());
+            assert!(!test_clip.exists(), "arquivo deve ter sido apagado após confirmação");
+            assert_eq!(snap.gallery_items.len(), 0);
+        }
+
+        // Encerramento
+        cmd_tx.send(UiCommand::Quit).unwrap();
+        tokio::time::sleep(Duration::from_millis(200)).await;
         assert!(quit_called.load(Ordering::SeqCst));
 
         server_task.abort();
