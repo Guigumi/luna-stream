@@ -1,0 +1,265 @@
+import { Theme, LunaCard, PillBadge } from "theme.slint";
+
+export component ControlTab inherits VerticalLayout {
+    spacing: 12px;
+
+    in property <bool> daemon-connected: false;
+    in property <string> encoder-label: "Detectando...";
+    in property <string> error-banner: "";
+
+    in property <bool> replay-active: false;
+    in property <int> replay-progress: 0;
+    in property <string> replay-buffer-label: "0s / 30s";
+    in property <string> replay-ram-label: "0 MB / 512 MB";
+    in property <string> hotkey-label: "Alt+F10";
+    in property <bool> can-save-clip: false;
+    in property <bool> saving-clip: false;
+    in property <string> last-saved-label: "";
+
+    in property <bool> recording: false;
+    in property <string> record-status-label: "";
+    in property <bool> shared-session: false;
+    in property <string> restart-hint: "";
+
+    callback toggle-replay();
+    callback save-clip();
+    callback toggle-record();
+    callback dismiss-error();
+
+    // Banner de erro inline
+    if root.error-banner != "": Rectangle {
+        background: #2A1215;
+        border-width: 1px;
+        border-color: Theme.crimson;
+        border-radius: 8px;
+        height: 38px;
+
+        HorizontalLayout {
+            padding-left: 12px;
+            padding-right: 12px;
+            alignment: space-between;
+
+            Text {
+                text: root.error-banner;
+                color: #FCA5A5;
+                font-size: 12px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            TouchArea {
+                width: 50px;
+                clicked => { root.dismiss-error(); }
+                Text {
+                    text: "Fechar";
+                    color: Theme.text-secondary;
+                    font-size: 11px;
+                    vertical-alignment: center;
+                    horizontal-alignment: right;
+                }
+            }
+        }
+    }
+
+    // Card Replay Buffer
+    LunaCard {
+        VerticalLayout {
+            padding: 14px;
+            spacing: 12px;
+
+            HorizontalLayout {
+                alignment: space-between;
+                VerticalLayout {
+                    spacing: 2px;
+                    Text {
+                        text: "Replay Buffer";
+                        color: Theme.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                    }
+                    Text {
+                        text: root.replay-active ? "Gravando continuamente em RAM" : "Inativo";
+                        color: root.replay-active ? Theme.emerald : Theme.text-muted;
+                        font-size: 11px;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: end;
+                    PillBadge {
+                        text: root.hotkey-label;
+                        bg: root.replay-active ? #1E1B4B : Theme.surface-elevated;
+                        fg: root.replay-active ? Theme.accent : Theme.text-secondary;
+                        border-col: root.replay-active ? #4338CA : Theme.border;
+                    }
+
+                    Rectangle {
+                        width: 72px;
+                        height: 28px;
+                        background: root.replay-active ? Theme.surface-elevated : Theme.accent;
+                        border-radius: 6px;
+                        TouchArea {
+                            clicked => { root.toggle-replay(); }
+                            Text {
+                                text: root.replay-active ? "Desligar" : "Ligar";
+                                color: root.replay-active ? Theme.text-secondary : #FFFFFF;
+                                font-size: 12px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Barra de retenção em RAM
+            if root.replay-active: VerticalLayout {
+                spacing: 4px;
+                Rectangle {
+                    height: 6px;
+                    background: Theme.surface-elevated;
+                    border-radius: 3px;
+                    clip: true;
+
+                    Rectangle {
+                        x: 0;
+                        width: (parent.width * root.replay-progress) / 100;
+                        background: Theme.emerald;
+                        border-radius: 3px;
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: root.replay-buffer-label;
+                        color: Theme.text-secondary;
+                        font-size: 11px;
+                    }
+                    Text {
+                        text: root.replay-ram-label;
+                        color: Theme.text-muted;
+                        font-size: 11px;
+                    }
+                }
+            }
+
+            // Botão de ação Salvar Clipe
+            Rectangle {
+                height: 38px;
+                background: (!root.can-save-clip || root.saving-clip) ? Theme.surface-elevated : Theme.accent;
+                border-radius: 8px;
+                TouchArea {
+                    enabled: root.can-save-clip && !root.saving-clip;
+                    clicked => { root.save-clip(); }
+                    Text {
+                        text: root.saving-clip ? "Salvando clipe..." : "Salvar clipe";
+                        color: (!root.can-save-clip || root.saving-clip) ? Theme.text-muted : #FFFFFF;
+                        font-size: 13px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            if root.last-saved-label != "": Text {
+                text: root.last-saved-label;
+                color: Theme.emerald;
+                font-size: 11px;
+                horizontal-alignment: center;
+            }
+
+            if root.restart-hint != "": Text {
+                text: root.restart-hint;
+                color: #FBBF24;
+                font-size: 11px;
+                horizontal-alignment: center;
+            }
+        }
+    }
+
+    // Card Gravação Contínua
+    LunaCard {
+        VerticalLayout {
+            padding: 14px;
+            spacing: 12px;
+
+            HorizontalLayout {
+                alignment: space-between;
+                VerticalLayout {
+                    spacing: 2px;
+                    Text {
+                        text: "Gravação";
+                        color: Theme.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                    }
+                    Text {
+                        text: root.recording ? "Gravação em andamento" : root.record-status-label;
+                        color: root.recording ? Theme.crimson : Theme.text-secondary;
+                        font-size: 11px;
+                    }
+                }
+
+                if root.shared_session: PillBadge {
+                    text: "Sessão única na GPU";
+                    bg: #064E3B;
+                    fg: #6EE7B7;
+                    border-col: #059669;
+                }
+            }
+
+            if root.recording: Text {
+                text: root.record-status-label;
+                color: Theme.text-primary;
+                font-size: 18px;
+                font-weight: 700;
+            }
+
+            Rectangle {
+                height: 38px;
+                background: root.recording ? Theme.crimson : Theme.surface-elevated;
+                border-width: root.recording ? 0px : 1px;
+                border-color: Theme.border;
+                border-radius: 8px;
+                TouchArea {
+                    clicked => { root.toggle-record(); }
+                    Text {
+                        text: root.recording ? "Parar gravação" : "Iniciar gravação";
+                        color: root.recording ? #FFFFFF : Theme.text-primary;
+                        font-size: 13px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+
+    // Espaçador flexível
+    Rectangle {}
+
+    // Rodapé técnico
+    HorizontalLayout {
+        height: 24px;
+        alignment: space-between;
+
+        Text {
+            text: root.encoder-label;
+            color: Theme.text-muted;
+            font-size: 11px;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.daemon-connected ? "Motor conectado" : "Conectando ao motor...";
+            color: root.daemon-connected ? Theme.emerald : Theme.text-muted;
+            font-size: 11px;
+            vertical-alignment: center;
+        }
+    }
+}

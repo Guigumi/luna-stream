@@ -1,0 +1,49 @@
+// Tema Luna Obsidian: paleta, tipografia e componentes base.
+
+export global Theme {
+    out property <color> background: #0B0D13;
+    out property <color> surface: #131722;
+    out property <color> surface-elevated: #181E2C;
+    out property <color> border: #1E2433;
+    out property <color> border-active: #2D374D;
+    out property <color> accent: #8B5CF6;
+    out property <color> accent-hover: #9D74F8;
+    out property <color> emerald: #10B981;
+    out property <color> crimson: #EF4444;
+    out property <color> text-primary: #F3F4F6;
+    out property <color> text-secondary: #9CA3AF;
+    out property <color> text-muted: #6B7280;
+}
+
+export component LunaCard inherits Rectangle {
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: Theme.border;
+    border-radius: 10px;
+}
+
+export component PillBadge inherits Rectangle {
+    in property <string> text;
+    in property <color> bg: Theme.surface-elevated;
+    in property <color> fg: Theme.text-secondary;
+    in property <color> border-col: Theme.border;
+
+    background: bg;
+    border-width: 1px;
+    border-color: border-col;
+    border-radius: 6px;
+    height: 22px;
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        alignment: center;
+        Text {
+            text: root.text;
+            color: root.fg;
+            font-size: 11px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+}

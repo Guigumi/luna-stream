@@ -1,0 +1,390 @@
+import { Theme, LunaCard } from "theme.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export component SettingsTab inherits ScrollView {
+    in-out property <int> pref-replay-duration-secs: 30;
+    in-out property <int> pref-replay-ram-mb: 512;
+    in-out property <string> pref-format: "mp4";
+    in-out property <string> pref-quality: "high";
+    in-out property <int> pref-fps: 60;
+    in-out property <bool> pref-audio-game: true;
+    in-out property <bool> pref-audio-call: true;
+    in-out property <bool> pref-audio-mic: true;
+    in-out property <bool> pref-clear-after-save: false;
+    in-out property <bool> pref-start-minimized: false;
+
+    in property <string> slint-attribution: "Interface construída com Slint";
+
+    callback preferences-changed();
+    callback open-slint-website();
+
+    VerticalLayout {
+        spacing: 12px;
+        padding-bottom: 16px;
+
+        // Seção Buffer de Replay
+        LunaCard {
+            VerticalLayout {
+                padding: 14px;
+                spacing: 10px;
+
+                Text {
+                    text: "Buffer de Replay";
+                    color: Theme.text-primary;
+                    font-size: 14px;
+                    font-weight: 700;
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Duração dos clipes";
+                        color: Theme.text-secondary;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                    HorizontalLayout {
+                        spacing: 4px;
+                        for d in [15, 30, 60, 120, 300]: Rectangle {
+                            width: d >= 100 ? 42px : 34px;
+                            height: 24px;
+                            background: root.pref-replay-duration-secs == d ? Theme.accent : Theme.surface-elevated;
+                            border-radius: 4px;
+                            TouchArea {
+                                clicked => {
+                                    root.pref-replay-duration-secs = d;
+                                    root.preferences-changed();
+                                }
+                                Text {
+                                    text: d >= 60 ? "\{d / 60}m" : "\{d}s";
+                                    color: root.pref-replay-duration-secs == d ? #FFFFFF : Theme.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Limite de memória RAM";
+                        color: Theme.text-secondary;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                    HorizontalLayout {
+                        spacing: 4px;
+                        for m in [256, 512, 1024]: Rectangle {
+                            width: m == 1024 ? 44px : 48px;
+                            height: 24px;
+                            background: root.pref-replay-ram-mb == m ? Theme.accent : Theme.surface-elevated;
+                            border-radius: 4px;
+                            TouchArea {
+                                clicked => {
+                                    root.pref-replay-ram-mb = m;
+                                    root.preferences-changed();
+                                }
+                                Text {
+                                    text: m == 1024 ? "1 GB" : "\{m}M";
+                                    color: root.pref-replay-ram-mb == m ? #FFFFFF : Theme.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Limpar buffer após salvar clipe";
+                        color: Theme.text-secondary;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        width: 44px;
+                        height: 22px;
+                        background: root.pref-clear-after-save ? Theme.accent : Theme.surface-elevated;
+                        border-radius: 11px;
+                        TouchArea {
+                            clicked => {
+                                root.pref-clear-after-save = !root.pref-clear-after-save;
+                                root.preferences-changed();
+                            }
+                            Rectangle {
+                                x: root.pref-clear-after-save ? 24px : 2px;
+                                y: 2px;
+                                width: 18px;
+                                height: 18px;
+                                background: #FFFFFF;
+                                border-radius: 9px;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Seção Vídeo
+        LunaCard {
+            VerticalLayout {
+                padding: 14px;
+                spacing: 10px;
+
+                Text {
+                    text: "Vídeo";
+                    color: Theme.text-primary;
+                    font-size: 14px;
+                    font-weight: 700;
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Formato do container";
+                        color: Theme.text-secondary;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                    HorizontalLayout {
+                        spacing: 4px;
+                        for fmt in ["mp4", "mkv"]: Rectangle {
+                            width: 44px;
+                            height: 24px;
+                            background: root.pref-format == fmt ? Theme.accent : Theme.surface-elevated;
+                            border-radius: 4px;
+                            TouchArea {
+                                clicked => {
+                                    root.pref-format = fmt;
+                                    root.preferences-changed();
+                                }
+                                Text {
+                                    text: fmt.to-uppercase();
+                                    color: root.pref-format == fmt ? #FFFFFF : Theme.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Taxa de quadros";
+                        color: Theme.text-secondary;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                    HorizontalLayout {
+                        spacing: 4px;
+                        for fps in [60, 30]: Rectangle {
+                            width: 52px;
+                            height: 24px;
+                            background: root.pref-fps == fps ? Theme.accent : Theme.surface-elevated;
+                            border-radius: 4px;
+                            TouchArea {
+                                clicked => {
+                                    root.pref-fps = fps;
+                                    root.preferences-changed();
+                                }
+                                Text {
+                                    text: "\{fps} fps";
+                                    color: root.pref-fps == fps ? #FFFFFF : Theme.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Seção Faixas de Áudio
+        LunaCard {
+            VerticalLayout {
+                padding: 14px;
+                spacing: 10px;
+
+                Text {
+                    text: "Faixas de Áudio";
+                    color: Theme.text-primary;
+                    font-size: 14px;
+                    font-weight: 700;
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Áudio do jogo";
+                        color: Theme.text-secondary;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        width: 44px;
+                        height: 22px;
+                        background: root.pref-audio-game ? Theme.accent : Theme.surface-elevated;
+                        border-radius: 11px;
+                        TouchArea {
+                            clicked => {
+                                root.pref-audio-game = !root.pref-audio-game;
+                                root.preferences-changed();
+                            }
+                            Rectangle {
+                                x: root.pref-audio-game ? 24px : 2px;
+                                y: 2px;
+                                width: 18px;
+                                height: 18px;
+                                background: #FFFFFF;
+                                border-radius: 9px;
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Voz (Discord / Call)";
+                        color: Theme.text-secondary;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        width: 44px;
+                        height: 22px;
+                        background: root.pref-audio-call ? Theme.accent : Theme.surface-elevated;
+                        border-radius: 11px;
+                        TouchArea {
+                            clicked => {
+                                root.pref-audio-call = !root.pref-audio-call;
+                                root.preferences-changed();
+                            }
+                            Rectangle {
+                                x: root.pref-audio-call ? 24px : 2px;
+                                y: 2px;
+                                width: 18px;
+                                height: 18px;
+                                background: #FFFFFF;
+                                border-radius: 9px;
+                            }
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Microfone";
+                        color: Theme.text-secondary;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        width: 44px;
+                        height: 22px;
+                        background: root.pref-audio-mic ? Theme.accent : Theme.surface-elevated;
+                        border-radius: 11px;
+                        TouchArea {
+                            clicked => {
+                                root.pref-audio-mic = !root.pref-audio-mic;
+                                root.preferences-changed();
+                            }
+                            Rectangle {
+                                x: root.pref-audio-mic ? 24px : 2px;
+                                y: 2px;
+                                width: 18px;
+                                height: 18px;
+                                background: #FFFFFF;
+                                border-radius: 9px;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Seção Sistema & Sobre (conformidade obrigatória ADR-0003)
+        LunaCard {
+            VerticalLayout {
+                padding: 14px;
+                spacing: 10px;
+
+                Text {
+                    text: "Sistema & Sobre";
+                    color: Theme.text-primary;
+                    font-size: 14px;
+                    font-weight: 700;
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Iniciar recolhido na bandeja";
+                        color: Theme.text-secondary;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        width: 44px;
+                        height: 22px;
+                        background: root.pref-start-minimized ? Theme.accent : Theme.surface-elevated;
+                        border-radius: 11px;
+                        TouchArea {
+                            clicked => {
+                                root.pref-start-minimized = !root.pref-start-minimized;
+                                root.preferences-changed();
+                            }
+                            Rectangle {
+                                x: root.pref-start-minimized ? 24px : 2px;
+                                y: 2px;
+                                width: 18px;
+                                height: 18px;
+                                background: #FFFFFF;
+                                border-radius: 9px;
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { height: 1px; background: Theme.border; }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: root.slint-attribution;
+                        color: Theme.text-muted;
+                        font-size: 11px;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        width: 50px;
+                        clicked => { root.open-slint-website(); }
+                        Text {
+                            text: "slint.dev";
+                            color: Theme.accent;
+                            font-size: 11px;
+                            vertical-alignment: center;
+                            horizontal-alignment: right;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

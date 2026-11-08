@@ -1,5 +1,205 @@
+import { Theme } from "theme.slint";
+import { ControlTab } from "control_tab.slint";
+import { ClipsTab, UiClipItem } from "clips_tab.slint";
+import { SettingsTab } from "settings_tab.slint";
+
+export { UiClipItem }
+
 export component AppWindow inherits Window {
     title: "Luna Stream";
-    width: 480px;
-    height: 580px;
+    preferred-width: 480px;
+    preferred-height: 580px;
+    min-width: 440px;
+    min-height: 520px;
+    background: Theme.background;
+
+    in-out property <int> active-tab: 0;
+
+    in-out property <bool> daemon-connected: false;
+    in-out property <string> encoder-label: "Detectando...";
+    in-out property <string> error-banner: "";
+
+    in-out property <bool> replay-active: false;
+    in-out property <int> replay-progress: 0;
+    in-out property <string> replay-buffer-label: "0s / 30s";
+    in-out property <string> replay-ram-label: "0 MB / 512 MB";
+    in-out property <string> hotkey-label: "Alt+F10";
+    in-out property <bool> can-save-clip: false;
+    in-out property <bool> saving-clip: false;
+    in-out property <string> last-saved-label: "";
+
+    in-out property <bool> recording: false;
+    in-out property <string> record-status-label: "";
+    in-out property <bool> shared-session: false;
+    in-out property <string> restart-hint: "";
+
+    in-out property <[UiClipItem]> clips: [];
+    in-out property <bool> undo-banner-visible: false;
+
+    in-out property <int> pref-replay-duration-secs: 30;
+    in-out property <int> pref-replay-ram-mb: 512;
+    in-out property <string> pref-format: "mp4";
+    in-out property <string> pref-quality: "high";
+    in-out property <int> pref-fps: 60;
+    in-out property <bool> pref-audio-game: true;
+    in-out property <bool> pref-audio-call: true;
+    in-out property <bool> pref-audio-mic: true;
+    in-out property <bool> pref-clear-after-save: false;
+    in-out property <bool> pref-start-minimized: false;
+
+    in property <string> slint-attribution: "Interface construída com Slint";
+
+    callback toggle-replay();
+    callback save-clip();
+    callback toggle-record();
+    callback dismiss-error();
+    callback open-clip(string);
+    callback delete-clip(string);
+    callback undo-delete-clip();
+    callback open-clips-dir();
+    callback preferences-changed();
+    callback open-slint-website();
+
+    VerticalLayout {
+        padding: 16px;
+        spacing: 14px;
+
+        // Cabeçalho unificado com marca e abas segmentadas
+        HorizontalLayout {
+            height: 36px;
+            alignment: space-between;
+
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                Text {
+                    text: "Luna Stream";
+                    color: Theme.text-primary;
+                    font-size: 16px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                }
+            }
+
+            // Seletor de 3 abas segmentadas
+            Rectangle {
+                width: 220px;
+                height: 32px;
+                background: Theme.surface;
+                border-width: 1px;
+                border-color: Theme.border;
+                border-radius: 8px;
+
+                HorizontalLayout {
+                    padding: 2px;
+                    spacing: 2px;
+
+                    // Aba 0: Controle
+                    Rectangle {
+                        background: root.active-tab == 0 ? Theme.surface-elevated : transparent;
+                        border-radius: 6px;
+                        TouchArea {
+                            clicked => { root.active-tab = 0; }
+                            Text {
+                                text: "Controle";
+                                color: root.active-tab == 0 ? Theme.accent : Theme.text-secondary;
+                                font-size: 11px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Aba 1: Clipes
+                    Rectangle {
+                        background: root.active-tab == 1 ? Theme.surface-elevated : transparent;
+                        border-radius: 6px;
+                        TouchArea {
+                            clicked => { root.active-tab = 1; }
+                            Text {
+                                text: "Clipes";
+                                color: root.active-tab == 1 ? Theme.accent : Theme.text-secondary;
+                                font-size: 11px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Aba 2: Ajustes
+                    Rectangle {
+                        background: root.active-tab == 2 ? Theme.surface-elevated : transparent;
+                        border-radius: 6px;
+                        TouchArea {
+                            clicked => { root.active-tab = 2; }
+                            Text {
+                                text: "Ajustes";
+                                color: root.active-tab == 2 ? Theme.accent : Theme.text-secondary;
+                                font-size: 11px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Conteúdo da aba selecionada
+        if root.active-tab == 0: ControlTab {
+            daemon-connected: root.daemon-connected;
+            encoder-label: root.encoder-label;
+            error-banner: root.error-banner;
+
+            replay-active: root.replay-active;
+            replay-progress: root.replay-progress;
+            replay-buffer-label: root.replay-buffer-label;
+            replay-ram-label: root.replay-ram-label;
+            hotkey-label: root.hotkey-label;
+            can-save-clip: root.can-save-clip;
+            saving-clip: root.saving-clip;
+            last-saved-label: root.last-saved-label;
+
+            recording: root.recording;
+            record-status-label: root.record-status-label;
+            shared-session: root.shared-session;
+            restart-hint: root.restart-hint;
+
+            toggle-replay => { root.toggle-replay(); }
+            save-clip => { root.save-clip(); }
+            toggle-record => { root.toggle-record(); }
+            dismiss-error => { root.dismiss-error(); }
+        }
+
+        if root.active-tab == 1: ClipsTab {
+            clips: root.clips;
+            undo-banner-visible: root.undo-banner-visible;
+
+            open-clip(p) => { root.open-clip(p); }
+            delete-clip(p) => { root.delete-clip(p); }
+            undo-delete-clip => { root.undo-delete-clip(); }
+            open-clips-dir => { root.open-clips-dir(); }
+        }
+
+        if root.active-tab == 2: SettingsTab {
+            pref-replay-duration-secs <=> root.pref-replay-duration-secs;
+            pref-replay-ram-mb <=> root.pref-replay-ram-mb;
+            pref-format <=> root.pref-format;
+            pref-quality <=> root.pref-quality;
+            pref-fps <=> root.pref-fps;
+            pref-audio-game <=> root.pref-audio-game;
+            pref-audio-call <=> root.pref-audio-call;
+            pref-audio-mic <=> root.pref-audio-mic;
+            pref-clear-after-save <=> root.pref-clear-after-save;
+            pref-start-minimized <=> root.pref-start-minimized;
+
+            slint-attribution: root.slint-attribution;
+
+            preferences-changed => { root.preferences-changed(); }
+            open-slint-website => { root.open-slint-website(); }
+        }
+    }
 }
