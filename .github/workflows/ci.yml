@@ -25,6 +25,9 @@ jobs:
             gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad \
             gstreamer1.0-plugins-ugly \
+            libfontconfig1-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
             clang \
             pkg-config
 

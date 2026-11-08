@@ -2,3 +2,5 @@
 *.mkv
 *.mp4
 .env
+/.pkg-config
+/.superpowers

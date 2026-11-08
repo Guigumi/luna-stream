@@ -1,0 +1,37 @@
+[package]
+name = "luna-stream-ui"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.92"
+license.workspace = true
+authors.workspace = true
+
+[lib]
+name = "luna_stream_ui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "luna-stream"
+path = "src/main.rs"
+
+[dependencies]
+luna-stream-proto.workspace = true
+luna-streamctl.workspace = true
+slint.workspace = true
+ksni.workspace = true
+tokio.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+nix.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+i-slint-backend-testing.workspace = true
