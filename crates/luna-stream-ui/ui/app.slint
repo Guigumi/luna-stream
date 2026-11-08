@@ -51,6 +51,7 @@ export component AppWindow inherits Window {
     in-out property <string> filter-kind: "all";
     in-out property <string> filter-format: "all";
     in-out property <string> filter-year: "all";
+    in-out property <[string]> facet-years: [];
     in-out property <string> filter-month: "all";
     in-out property <string> filter-day: "all";
     in-out property <string> sort-field: "recent";
@@ -390,11 +391,13 @@ export component AppWindow inherits Window {
                     start-capture-replay => {
                         root.capturing-replay-keybind = true;
                         root.capturing-record-keybind = false;
+                        focus-scope.focus();
                         root.start-capture-replay-hotkey();
                     }
                     start-capture-record => {
                         root.capturing-record-keybind = true;
                         root.capturing-replay-keybind = false;
+                        focus-scope.focus();
                         root.start-capture-record-hotkey();
                     }
                     cancel-capture => {
@@ -414,6 +417,8 @@ export component AppWindow inherits Window {
                     confirming-delete-path: root.confirming-delete-path;
                     filter-kind <=> root.filter-kind;
                     filter-format <=> root.filter-format;
+                    filter-year <=> root.filter-year;
+                    facet-years: root.facet-years;
                     sort-field <=> root.sort-field;
                     sort-order <=> root.sort-order;
 
@@ -460,11 +465,13 @@ export component AppWindow inherits Window {
                     start-capture-replay => {
                         root.capturing-replay-keybind = true;
                         root.capturing-record-keybind = false;
+                        focus-scope.focus();
                         root.start-capture-replay-hotkey();
                     }
                     start-capture-record => {
                         root.capturing-record-keybind = true;
                         root.capturing-replay-keybind = false;
+                        focus-scope.focus();
                         root.start-capture-record-hotkey();
                     }
                     cancel-capture => {

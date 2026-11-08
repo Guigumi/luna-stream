@@ -337,12 +337,15 @@ pub async fn run_supervisor(
                         sync_tray(&tray, &snapshot, &prefs).await;
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
-                    UiCommand::UpdatePreferences(new_prefs) => {
+                    UiCommand::UpdatePreferences(mut new_prefs) => {
                         if snapshot.replay_active && prefs.requires_session_restart(&new_prefs) {
                             snapshot.restart_hint = "Reinicie o Replay para aplicar na sessão atual".to_string();
                         } else {
                             snapshot.restart_hint.clear();
                         }
+                        // Preserva os atalhos vigentes para não sobrescrever customizações feitas via CaptureHotkey
+                        new_prefs.replay_hotkey = prefs.replay_hotkey.clone();
+                        new_prefs.record_hotkey = prefs.record_hotkey.clone();
                         prefs = new_prefs;
                         let _ = prefs.save_to(&cfg.config_path);
                         snapshot.prefs = prefs.clone();

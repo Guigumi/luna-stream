@@ -4,7 +4,7 @@ use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_app::AppSink;
 use luna_stream_proto::{
-    ContainerFormat, ErrorCode, HotkeysConfigureParams, HotkeysConfigureResult, RecordStartParams,
+    ErrorCode, HotkeysConfigureParams, HotkeysConfigureResult, RecordStartParams,
     RecordStartResult, RecordStatusResult, RecordStopResult, ReplaySaveParams, ReplaySaveResult,
     ReplayStartParams, ReplayStartResult, ReplayStatusResult, ReplayStopResult, RpcError,
     SourceKind, SystemAudioMode,
@@ -124,6 +124,10 @@ impl SessionManager {
         match action {
             HotkeyAction::SaveClip => {
                 let _guard = self.save_mutex.lock().await;
+                let (format, output_dir) = {
+                    let defs = self.record_defaults.lock().await;
+                    (defs.format, defs.output_dir.clone())
+                };
                 let snap_opt = {
                     let lock = self.session.lock().await;
                     lock.as_ref().and_then(|s| {
@@ -136,15 +140,15 @@ impl SessionManager {
                 };
                 if let Some(snapshot) = snap_opt {
                     if let Ok(path) = resolve_clip_path(
+                        output_dir.as_deref(),
                         None,
-                        None,
-                        ContainerFormat::Mp4,
+                        format,
                         None,
                         std::process::id(),
                         snapshot.total_bytes,
                     ) {
                         let res = tokio::task::spawn_blocking(move || {
-                            write_clip_offline(snapshot, ContainerFormat::Mp4, &path).map(|_| path)
+                            write_clip_offline(snapshot, format, &path).map(|_| path)
                         })
                         .await;
                         if let Ok(Ok(saved_path)) = res {

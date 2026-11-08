@@ -11,6 +11,8 @@ export component GalleryTab inherits VerticalLayout {
 
     in-out property <string> filter-kind: "all"; // all, clip, recording
     in-out property <string> filter-format: "all"; // all, mp4, mkv
+    in-out property <string> filter-year: "all";
+    in-out property <[string]> facet-years: [];
     in-out property <string> sort-field: "recent"; // recent, size, duration
     in-out property <string> sort-order: "desc"; // desc, asc
 
@@ -50,7 +52,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-kind == "all";
                         clicked => {
                             root.filter-kind = "all";
-                            root.filter-changed(root.filter-kind, root.filter-format, "all", "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
                         }
                     }
                     FlatFilterChip {
@@ -58,7 +60,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-kind == "clip";
                         clicked => {
                             root.filter-kind = "clip";
-                            root.filter-changed(root.filter-kind, root.filter-format, "all", "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
                         }
                     }
                     FlatFilterChip {
@@ -66,7 +68,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-kind == "recording";
                         clicked => {
                             root.filter-kind = "recording";
-                            root.filter-changed(root.filter-kind, root.filter-format, "all", "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
                         }
                     }
 
@@ -84,7 +86,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-format == "all";
                         clicked => {
                             root.filter-format = "all";
-                            root.filter-changed(root.filter-kind, root.filter-format, "all", "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
                         }
                     }
                     FlatFilterChip {
@@ -92,7 +94,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-format == "mp4";
                         clicked => {
                             root.filter-format = "mp4";
-                            root.filter-changed(root.filter-kind, root.filter-format, "all", "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
                         }
                     }
                     FlatFilterChip {
@@ -100,7 +102,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-format == "mkv";
                         clicked => {
                             root.filter-format = "mkv";
-                            root.filter-changed(root.filter-kind, root.filter-format, "all", "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
                         }
                     }
                 }
@@ -119,7 +121,37 @@ export component GalleryTab inherits VerticalLayout {
                 }
             }
 
-            // Linha 2: Ordenação por campo e ordem crescente/decrescente
+            // Linha 2: Filtro por Ano (se houver facetas)
+            if root.facet-years.length > 0 : HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+
+                Text {
+                    text: "Ano:";
+                    color: Theme.text-secondary;
+                    font-size: 11px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+                FlatFilterChip {
+                    text: "Todos";
+                    selected: root.filter-year == "all";
+                    clicked => {
+                        root.filter-year = "all";
+                        root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
+                    }
+                }
+                for yr in root.facet-years : FlatFilterChip {
+                    text: yr;
+                    selected: root.filter-year == yr;
+                    clicked => {
+                        root.filter-year = yr;
+                        root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
+                    }
+                }
+            }
+
+            // Linha 3: Ordenação por campo e ordem crescente/decrescente
             HorizontalLayout {
                 spacing: 8px;
                 alignment: start;

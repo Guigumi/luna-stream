@@ -232,6 +232,37 @@ async fn supervisor_lifecycle_ipc_and_gallery_v2() {
             );
         }
 
+        // Teste de captura válida de atalho e garantia de preservação no UpdatePreferences
+        cmd_tx
+            .send(UiCommand::CaptureHotkey {
+                for_record: true,
+                trigger: "CTRL+F12".into(),
+            })
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+
+        {
+            let snap = last_snapshot.lock().unwrap().clone();
+            assert_eq!(snap.prefs.record_hotkey, "CTRL+F12");
+        }
+
+        let mut prefs_update = last_snapshot.lock().unwrap().prefs.clone();
+        prefs_update.bitrate_kbps = 28000;
+        prefs_update.record_hotkey = "ALT+F9".into(); // simula default do read_preferences_from_window
+        cmd_tx
+            .send(UiCommand::UpdatePreferences(prefs_update))
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+
+        {
+            let snap = last_snapshot.lock().unwrap().clone();
+            assert_eq!(snap.prefs.bitrate_kbps, 28000);
+            assert_eq!(
+                snap.prefs.record_hotkey, "CTRL+F12",
+                "UpdatePreferences deve preservar binds customizados"
+            );
+        }
+
         // Teste de exclusão em duas etapas
         // 1. Request
         cmd_tx

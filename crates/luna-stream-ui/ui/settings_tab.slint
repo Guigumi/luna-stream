@@ -336,6 +336,66 @@ export component SettingsTab inherits Flickable {
                         }
                     }
                 }
+
+                // Dispositivo de Saída (Fone)
+                if root.pref-audio-profile != "game_only" : VerticalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: "Dispositivo de Saída (Fone / Alto-falante)";
+                        color: Theme.text-primary;
+                        font-size: 13px;
+                        font-weight: 600;
+                    }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        FlatFilterChip {
+                            text: "Padrão do Sistema";
+                            selected: root.pref-output-device == "";
+                            clicked => {
+                                root.pref-output-device = "";
+                                root.preferences-changed();
+                            }
+                        }
+                        for dev in root.audio-outputs : FlatFilterChip {
+                            text: dev.label;
+                            selected: root.pref-output-device == dev.id;
+                            clicked => {
+                                root.pref-output-device = dev.id;
+                                root.preferences-changed();
+                            }
+                        }
+                    }
+                }
+
+                // Dispositivo de Microfone
+                if root.pref-audio-profile != "game_only" && root.pref-audio-mic : VerticalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: "Dispositivo de Microfone";
+                        color: Theme.text-primary;
+                        font-size: 13px;
+                        font-weight: 600;
+                    }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        FlatFilterChip {
+                            text: "Padrão do Sistema";
+                            selected: root.pref-mic-device == "";
+                            clicked => {
+                                root.pref-mic-device = "";
+                                root.preferences-changed();
+                            }
+                        }
+                        for dev in root.audio-inputs : FlatFilterChip {
+                            text: dev.label;
+                            selected: root.pref-mic-device == dev.id;
+                            clicked => {
+                                root.pref-mic-device = dev.id;
+                                root.preferences-changed();
+                            }
+                        }
+                    }
+                }
             }
         }
 

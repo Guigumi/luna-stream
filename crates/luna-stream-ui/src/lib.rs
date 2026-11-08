@@ -77,6 +77,14 @@ pub fn apply_snapshot_to_window(window: &AppWindow, snap: &UiSnapshot) {
     let gallery_ui: Vec<UiMediaItem> = snap.gallery_items.iter().map(to_ui_media_item).collect();
     window.set_gallery_items(Rc::new(VecModel::from(gallery_ui)).into());
 
+    let years: Vec<slint::SharedString> = snap
+        .facets
+        .years
+        .iter()
+        .map(|y| y.as_str().into())
+        .collect();
+    window.set_facet_years(Rc::new(VecModel::from(years)).into());
+
     // Dispositivos de Áudio
     let out_devices: Vec<UiDeviceOption> = snap
         .audio_outputs
