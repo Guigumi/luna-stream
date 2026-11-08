@@ -1,131 +1,246 @@
-import { Theme, LunaCard } from "theme.slint";
-import { ScrollView } from "std-widgets.slint";
+import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton, FlatFilterChip, NumericStepper } from "theme.slint";
+import { UiDeviceOption } from "types.slint";
 
-export component SettingsTab inherits ScrollView {
+export component SettingsTab inherits Flickable {
+    content-height: 840px;
+
     in-out property <int> pref-replay-duration-secs: 30;
-    in-out property <int> pref-replay-ram-mb: 512;
-    in-out property <string> pref-format: "mp4";
-    in-out property <string> pref-quality: "high";
+    in-out property <int> pref-bitrate-kbps: 12000;
     in-out property <int> pref-fps: 60;
-    in-out property <bool> pref-audio-game: true;
-    in-out property <bool> pref-audio-call: true;
+    in-out property <string> pref-resolution: "native"; // native, 1440p, 1080p, 720p
+    in-out property <string> pref-format: "mp4"; // mp4, mkv
+    in-out property <string> pref-audio-profile: "system"; // game_only, system
     in-out property <bool> pref-audio-mic: true;
+    in-out property <string> pref-output-device: "";
+    in-out property <string> pref-mic-device: "";
+    in-out property <[UiDeviceOption]> audio-outputs: [];
+    in-out property <[UiDeviceOption]> audio-inputs: [];
+    in-out property <string> pref-replay-hotkey: "Alt + F8";
+    in-out property <string> pref-record-hotkey: "Alt + F9";
+    in-out property <bool> capturing-replay: false;
+    in-out property <bool> capturing-record: false;
     in-out property <bool> pref-clear-after-save: false;
     in-out property <bool> pref-start-minimized: false;
 
+    in-out property <int> cap-max-ram-mb: 8192;
+    in-out property <int> cap-min-bitrate-kbps: 1000;
+    in-out property <int> cap-max-bitrate-kbps: 100000;
+    in-out property <int> cap-min-fps: 15;
+    in-out property <int> cap-max-fps: 240;
+    in-out property <int> cap-max-replay-secs: 600;
+
     in property <string> slint-attribution: "Interface construída com Slint";
+    in property <string> app-version: "v0.6.0";
 
     callback preferences-changed();
+    callback start-capture-replay();
+    callback start-capture-record();
+    callback cancel-capture();
+    callback reset-default-hotkeys();
     callback open-slint-website();
 
     VerticalLayout {
-        spacing: 12px;
-        padding-bottom: 16px;
+        padding: 16px;
+        spacing: 16px;
 
-        // Seção Buffer de Replay
+        // Bloco 1: Vídeo e Codificação
         LunaCard {
             VerticalLayout {
-                padding: 14px;
-                spacing: 10px;
+                padding: 16px;
+                spacing: 14px;
 
                 Text {
-                    text: "Buffer de Replay";
+                    text: "Vídeo e Codificação";
                     color: Theme.text-primary;
                     font-size: 14px;
                     font-weight: 700;
                 }
 
+                // Duração do buffer de replay
                 HorizontalLayout {
                     alignment: space-between;
-                    Text {
-                        text: "Duração dos clipes";
-                        color: Theme.text-secondary;
-                        font-size: 12px;
-                        vertical-alignment: center;
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Duração do Buffer de Replay";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: "Janela contínua de memória para gravação retroativa.";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                        }
                     }
-                    HorizontalLayout {
-                        spacing: 4px;
-                        for d in [15, 30, 60, 120, 300]: Rectangle {
-                            width: d >= 100 ? 42px : 34px;
-                            height: 24px;
-                            background: root.pref-replay-duration-secs == d ? Theme.accent : Theme.surface-elevated;
-                            border-radius: 4px;
-                            TouchArea {
-                                clicked => {
-                                    root.pref-replay-duration-secs = d;
-                                    root.preferences-changed();
-                                }
-                                Text {
-                                    text: d >= 60 ? "\{d / 60}m" : "\{d}s";
-                                    color: root.pref-replay-duration-secs == d ? #FFFFFF : Theme.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 600;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                }
-                            }
+                    NumericStepper {
+                        width: 170px;
+                        value: root.pref-replay-duration-secs;
+                        min-value: 5;
+                        max-value: root.cap-max-replay-secs;
+                        step: 5;
+                        unit: "s";
+                        value-changed(val) => {
+                            root.pref-replay-duration-secs = val;
+                            root.preferences-changed();
                         }
                     }
                 }
 
+                // Bitrate em Kbps
                 HorizontalLayout {
                     alignment: space-between;
-                    Text {
-                        text: "Limite de memória RAM";
-                        color: Theme.text-secondary;
-                        font-size: 12px;
-                        vertical-alignment: center;
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Taxa de Bits (Bitrate)";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: "Qualidade da imagem em Kbps (padrão: 12.000 Kbps).";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                        }
                     }
-                    HorizontalLayout {
-                        spacing: 4px;
-                        for m in [256, 512, 1024]: Rectangle {
-                            width: m == 1024 ? 44px : 48px;
-                            height: 24px;
-                            background: root.pref-replay-ram-mb == m ? Theme.accent : Theme.surface-elevated;
-                            border-radius: 4px;
-                            TouchArea {
-                                clicked => {
-                                    root.pref-replay-ram-mb = m;
-                                    root.preferences-changed();
-                                }
-                                Text {
-                                    text: m == 1024 ? "1 GB" : "\{m}M";
-                                    color: root.pref-replay-ram-mb == m ? #FFFFFF : Theme.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 600;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                }
-                            }
+                    NumericStepper {
+                        width: 170px;
+                        value: root.pref-bitrate-kbps;
+                        min-value: root.cap-min-bitrate-kbps;
+                        max-value: root.cap-max-bitrate-kbps;
+                        step: 1000;
+                        unit: "Kbps";
+                        value-changed(val) => {
+                            root.pref-bitrate-kbps = val;
+                            root.preferences-changed();
                         }
                     }
                 }
 
+                // Taxa de Quadros (FPS)
                 HorizontalLayout {
                     alignment: space-between;
-                    Text {
-                        text: "Limpar buffer após salvar clipe";
-                        color: Theme.text-secondary;
-                        font-size: 12px;
-                        vertical-alignment: center;
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Taxa de Quadros (FPS)";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: "Quadros por segundo da captura (15 a 240 fps).";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                        }
                     }
-                    Rectangle {
-                        width: 44px;
-                        height: 22px;
-                        background: root.pref-clear-after-save ? Theme.accent : Theme.surface-elevated;
-                        border-radius: 11px;
-                        TouchArea {
+                    NumericStepper {
+                        width: 170px;
+                        value: root.pref-fps;
+                        min-value: root.cap-min-fps;
+                        max-value: root.cap-max-fps;
+                        step: 15;
+                        unit: "fps";
+                        value-changed(val) => {
+                            root.pref-fps = val;
+                            root.preferences-changed();
+                        }
+                    }
+                }
+
+                // Resolução
+                HorizontalLayout {
+                    alignment: space-between;
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Resolução";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: "Dimensão de renderização do codificador.";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        FlatFilterChip {
+                            text: "Nativa";
+                            selected: root.pref-resolution == "native";
                             clicked => {
-                                root.pref-clear-after-save = !root.pref-clear-after-save;
+                                root.pref-resolution = "native";
                                 root.preferences-changed();
                             }
-                            Rectangle {
-                                x: root.pref-clear-after-save ? 24px : 2px;
-                                y: 2px;
-                                width: 18px;
-                                height: 18px;
-                                background: #FFFFFF;
-                                border-radius: 9px;
+                        }
+                        FlatFilterChip {
+                            text: "1440p";
+                            selected: root.pref-resolution == "1440p";
+                            clicked => {
+                                root.pref-resolution = "1440p";
+                                root.preferences-changed();
+                            }
+                        }
+                        FlatFilterChip {
+                            text: "1080p";
+                            selected: root.pref-resolution == "1080p";
+                            clicked => {
+                                root.pref-resolution = "1080p";
+                                root.preferences-changed();
+                            }
+                        }
+                        FlatFilterChip {
+                            text: "720p";
+                            selected: root.pref-resolution == "720p";
+                            clicked => {
+                                root.pref-resolution = "720p";
+                                root.preferences-changed();
+                            }
+                        }
+                    }
+                }
+
+                // Formato de Container
+                HorizontalLayout {
+                    alignment: space-between;
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Formato de Arquivo";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: "MP4 (máxima compatibilidade) ou MKV (tolerante a quedas).";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        FlatFilterChip {
+                            text: "MP4";
+                            selected: root.pref-format == "mp4";
+                            clicked => {
+                                root.pref-format = "mp4";
+                                root.preferences-changed();
+                            }
+                        }
+                        FlatFilterChip {
+                            text: "MKV";
+                            selected: root.pref-format == "mkv";
+                            clicked => {
+                                root.pref-format = "mkv";
+                                root.preferences-changed();
                             }
                         }
                     }
@@ -133,238 +248,218 @@ export component SettingsTab inherits ScrollView {
             }
         }
 
-        // Seção Vídeo
+        // Bloco 2: Áudio
         LunaCard {
             VerticalLayout {
-                padding: 14px;
-                spacing: 10px;
+                padding: 16px;
+                spacing: 14px;
 
                 Text {
-                    text: "Vídeo";
+                    text: "Captura de Áudio";
                     color: Theme.text-primary;
                     font-size: 14px;
                     font-weight: 700;
                 }
 
-                HorizontalLayout {
-                    alignment: space-between;
-                    Text {
-                        text: "Formato do container";
-                        color: Theme.text-secondary;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                    }
+                // Modo / Perfil de Áudio
+                VerticalLayout {
+                    spacing: 8px;
                     HorizontalLayout {
-                        spacing: 4px;
-                        for fmt in ["mp4", "mkv"]: Rectangle {
-                            width: 44px;
-                            height: 24px;
-                            background: root.pref-format == fmt ? Theme.accent : Theme.surface-elevated;
-                            border-radius: 4px;
-                            TouchArea {
+                        alignment: space-between;
+                        VerticalLayout {
+                            spacing: 2px;
+                            Text {
+                                text: "Modo de Gravação de Áudio";
+                                color: Theme.text-primary;
+                                font-size: 13px;
+                                font-weight: 600;
+                            }
+                            Text {
+                                text: root.pref-audio-profile == "game_only"
+                                    ? "Somente jogo: áudio do jogo isolado via PipeWire (sem mic, sem call)."
+                                    : "Áudio do sistema: mistura jogo, chamadas, saída geral e microfone.";
+                                color: root.pref-audio-profile == "game_only" ? Theme.accent-hover : Theme.text-secondary;
+                                font-size: 11px;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            FlatFilterChip {
+                                text: "Somente jogo";
+                                selected: root.pref-audio-profile == "game_only";
                                 clicked => {
-                                    root.pref-format = fmt;
+                                    root.pref-audio-profile = "game_only";
                                     root.preferences-changed();
                                 }
-                                Text {
-                                    text: fmt.to-uppercase();
-                                    color: root.pref-format == fmt ? #FFFFFF : Theme.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 600;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                }
                             }
-                        }
-                    }
-                }
-
-                HorizontalLayout {
-                    alignment: space-between;
-                    Text {
-                        text: "Qualidade";
-                        color: Theme.text-secondary;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                    }
-                    HorizontalLayout {
-                        spacing: 4px;
-                        for q in [
-                            { id: "ultra", label: "Ultra" },
-                            { id: "high", label: "Alta" },
-                            { id: "medium", label: "Média" },
-                            { id: "low", label: "Baixa" },
-                        ]: Rectangle {
-                            width: 50px;
-                            height: 24px;
-                            background: root.pref-quality == q.id ? Theme.accent : Theme.surface-elevated;
-                            border-radius: 4px;
-                            TouchArea {
+                            FlatFilterChip {
+                                text: "Áudio do sistema";
+                                selected: root.pref-audio-profile == "system";
                                 clicked => {
-                                    root.pref-quality = q.id;
+                                    root.pref-audio-profile = "system";
                                     root.preferences-changed();
                                 }
-                                Text {
-                                    text: q.label;
-                                    color: root.pref-quality == q.id ? #FFFFFF : Theme.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 600;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                }
                             }
                         }
                     }
                 }
 
+                // Microfone (desabilitado quando 'Somente jogo')
                 HorizontalLayout {
                     alignment: space-between;
-                    Text {
-                        text: "Taxa de quadros";
-                        color: Theme.text-secondary;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                    }
-                    HorizontalLayout {
-                        spacing: 4px;
-                        for fps in [60, 30]: Rectangle {
-                            width: 52px;
-                            height: 24px;
-                            background: root.pref-fps == fps ? Theme.accent : Theme.surface-elevated;
-                            border-radius: 4px;
-                            TouchArea {
-                                clicked => {
-                                    root.pref-fps = fps;
-                                    root.preferences-changed();
-                                }
-                                Text {
-                                    text: "\{fps} fps";
-                                    color: root.pref-fps == fps ? #FFFFFF : Theme.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 600;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                }
-                            }
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Microfone";
+                            color: root.pref-audio-profile == "game_only" ? Theme.text-muted : Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: root.pref-audio-profile == "game_only"
+                                ? "Desativado automaticamente no perfil Somente jogo."
+                                : "Incluir voz do microfone nas capturas e replays.";
+                            color: Theme.text-muted;
+                            font-size: 11px;
                         }
                     }
-                }
-            }
-        }
-
-        // Seção Faixas de Áudio
-        LunaCard {
-            VerticalLayout {
-                padding: 14px;
-                spacing: 10px;
-
-                Text {
-                    text: "Faixas de Áudio";
-                    color: Theme.text-primary;
-                    font-size: 14px;
-                    font-weight: 700;
-                }
-
-                HorizontalLayout {
-                    alignment: space-between;
-                    Text {
-                        text: "Áudio do jogo";
-                        color: Theme.text-secondary;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                    }
-                    Rectangle {
-                        width: 44px;
-                        height: 22px;
-                        background: root.pref-audio-game ? Theme.accent : Theme.surface-elevated;
-                        border-radius: 11px;
-                        TouchArea {
-                            clicked => {
-                                root.pref-audio-game = !root.pref-audio-game;
-                                root.preferences-changed();
-                            }
-                            Rectangle {
-                                x: root.pref-audio-game ? 24px : 2px;
-                                y: 2px;
-                                width: 18px;
-                                height: 18px;
-                                background: #FFFFFF;
-                                border-radius: 9px;
-                            }
-                        }
-                    }
-                }
-
-                HorizontalLayout {
-                    alignment: space-between;
-                    Text {
-                        text: "Voz (Discord / Call)";
-                        color: Theme.text-secondary;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                    }
-                    Rectangle {
-                        width: 44px;
-                        height: 22px;
-                        background: root.pref-audio-call ? Theme.accent : Theme.surface-elevated;
-                        border-radius: 11px;
-                        TouchArea {
-                            clicked => {
-                                root.pref-audio-call = !root.pref-audio-call;
-                                root.preferences-changed();
-                            }
-                            Rectangle {
-                                x: root.pref-audio-call ? 24px : 2px;
-                                y: 2px;
-                                width: 18px;
-                                height: 18px;
-                                background: #FFFFFF;
-                                border-radius: 9px;
-                            }
-                        }
-                    }
-                }
-
-                HorizontalLayout {
-                    alignment: space-between;
-                    Text {
-                        text: "Microfone";
-                        color: Theme.text-secondary;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                    }
-                    Rectangle {
-                        width: 44px;
-                        height: 22px;
-                        background: root.pref-audio-mic ? Theme.accent : Theme.surface-elevated;
-                        border-radius: 11px;
-                        TouchArea {
-                            clicked => {
+                    FlatFilterChip {
+                        text: root.pref-audio-profile == "game_only"
+                            ? "Bloqueado"
+                            : (root.pref-audio-mic ? "Ativado" : "Desativado");
+                        selected: root.pref-audio-profile != "game_only" && root.pref-audio-mic;
+                        clicked => {
+                            if (root.pref-audio-profile != "game_only") {
                                 root.pref-audio-mic = !root.pref-audio-mic;
                                 root.preferences-changed();
                             }
-                            Rectangle {
-                                x: root.pref-audio-mic ? 24px : 2px;
-                                y: 2px;
-                                width: 18px;
-                                height: 18px;
-                                background: #FFFFFF;
-                                border-radius: 9px;
-                            }
                         }
                     }
                 }
             }
         }
 
-        // Seção Sistema & Sobre (conformidade obrigatória ADR-0003)
+        // Bloco 3: Atalhos Globais de Teclado
         LunaCard {
             VerticalLayout {
-                padding: 14px;
-                spacing: 10px;
+                padding: 16px;
+                spacing: 14px;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Atalhos Globais (Binds)";
+                        color: Theme.text-primary;
+                        font-size: 14px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                    FlatIconButton {
+                        text: "Restaurar Padrões (Alt+F8 / Alt+F9)";
+                        clicked => { root.reset-default-hotkeys(); }
+                    }
+                }
+
+                // Bind Replay
+                HorizontalLayout {
+                    alignment: space-between;
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Salvar Clipe Instantâneo";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "Grava os últimos segundos do buffer em arquivo de vídeo.";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                        }
+                    }
+                    if !root.capturing-replay : HorizontalLayout {
+                        spacing: 8px;
+                        PillBadge {
+                            text: root.pref-replay-hotkey;
+                            bg: Theme.surface-elevated;
+                            fg: Theme.text-primary;
+                            border-col: Theme.border-active;
+                        }
+                        FlatIconButton {
+                            text: "Alterar";
+                            clicked => { root.start-capture-replay(); }
+                        }
+                    }
+                    if root.capturing-replay : HorizontalLayout {
+                        spacing: 8px;
+                        PillBadge {
+                            text: "Pressione as teclas...";
+                            bg: Theme.accent-muted;
+                            fg: Theme.accent-hover;
+                            border-col: Theme.accent;
+                        }
+                        FlatIconButton {
+                            text: "Cancelar";
+                            clicked => { root.cancel-capture(); }
+                        }
+                    }
+                }
+
+                // Bind Gravação
+                HorizontalLayout {
+                    alignment: space-between;
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Iniciar / Parar Gravação Manual";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "Alterna a gravação contínua do vídeo e áudio.";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                        }
+                    }
+                    if !root.capturing-record : HorizontalLayout {
+                        spacing: 8px;
+                        PillBadge {
+                            text: root.pref-record-hotkey;
+                            bg: Theme.surface-elevated;
+                            fg: Theme.text-primary;
+                            border-col: Theme.border-active;
+                        }
+                        FlatIconButton {
+                            text: "Alterar";
+                            clicked => { root.start-capture-record(); }
+                        }
+                    }
+                    if root.capturing-record : HorizontalLayout {
+                        spacing: 8px;
+                        PillBadge {
+                            text: "Pressione as teclas...";
+                            bg: Theme.accent-muted;
+                            fg: Theme.accent-hover;
+                            border-col: Theme.accent;
+                        }
+                        FlatIconButton {
+                            text: "Cancelar";
+                            clicked => { root.cancel-capture(); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bloco 4: Opções Gerais e Comportamento
+        LunaCard {
+            VerticalLayout {
+                padding: 16px;
+                spacing: 14px;
 
                 Text {
-                    text: "Sistema & Sobre";
+                    text: "Comportamento";
                     color: Theme.text-primary;
                     font-size: 14px;
                     font-weight: 700;
@@ -372,56 +467,83 @@ export component SettingsTab inherits ScrollView {
 
                 HorizontalLayout {
                     alignment: space-between;
-                    Text {
-                        text: "Iniciar recolhido na bandeja";
-                        color: Theme.text-secondary;
-                        font-size: 12px;
-                        vertical-alignment: center;
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Limpar buffer após salvar clipe";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "Reinicia a janela de gravação para não duplicar cenas.";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                        }
                     }
-                    Rectangle {
-                        width: 44px;
-                        height: 22px;
-                        background: root.pref-start-minimized ? Theme.accent : Theme.surface-elevated;
-                        border-radius: 11px;
-                        TouchArea {
-                            clicked => {
-                                root.pref-start-minimized = !root.pref-start-minimized;
-                                root.preferences-changed();
-                            }
-                            Rectangle {
-                                x: root.pref-start-minimized ? 24px : 2px;
-                                y: 2px;
-                                width: 18px;
-                                height: 18px;
-                                background: #FFFFFF;
-                                border-radius: 9px;
-                            }
+                    FlatFilterChip {
+                        text: root.pref-clear-after-save ? "Ativado" : "Desativado";
+                        selected: root.pref-clear-after-save;
+                        clicked => {
+                            root.pref-clear-after-save = !root.pref-clear-after-save;
+                            root.preferences-changed();
                         }
                     }
                 }
-
-                Rectangle { height: 1px; background: Theme.border; }
 
                 HorizontalLayout {
                     alignment: space-between;
-                    Text {
-                        text: "Luna Stream v0.5.0 · " + root.slint-attribution;
-                        color: Theme.text-muted;
-                        font-size: 11px;
-                        vertical-alignment: center;
-                    }
-                    TouchArea {
-                        width: 50px;
-                        clicked => { root.open-slint-website(); }
+                    VerticalLayout {
+                        spacing: 2px;
                         Text {
-                            text: "slint.dev";
-                            color: Theme.accent;
+                            text: "Iniciar minimizado na bandeja";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "Oculta a interface gráfica na inicialização mantendo o serviço ativo.";
+                            color: Theme.text-secondary;
                             font-size: 11px;
-                            vertical-alignment: center;
-                            horizontal-alignment: right;
+                        }
+                    }
+                    FlatFilterChip {
+                        text: root.pref-start-minimized ? "Ativado" : "Desativado";
+                        selected: root.pref-start-minimized;
+                        clicked => {
+                            root.pref-start-minimized = !root.pref-start-minimized;
+                            root.preferences-changed();
                         }
                     }
                 }
+            }
+        }
+
+        // Rodapé de Atribuição da Licença Royalty-Free Slint 2.0 (ADR-0003)
+        HorizontalLayout {
+            alignment: space-between;
+            padding-top: 8px;
+            padding-bottom: 8px;
+
+            Rectangle {
+                slint-touch := TouchArea {
+                    clicked => { root.open-slint-website(); }
+                    mouse-cursor: pointer;
+                }
+                Text {
+                    text: root.slint-attribution;
+                    color: slint-touch.has-hover ? Theme.accent : Theme.text-secondary;
+                    font-size: 11px;
+                    font-weight: 500;
+                    vertical-alignment: center;
+                }
+            }
+
+            Text {
+                text: "Luna Stream " + root.app-version;
+                color: Theme.text-muted;
+                font-size: 11px;
+                vertical-alignment: center;
             }
         }
     }

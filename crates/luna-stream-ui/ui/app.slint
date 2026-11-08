@@ -1,205 +1,481 @@
-import { Theme } from "theme.slint";
-import { ControlTab } from "control_tab.slint";
-import { ClipsTab, UiClipItem } from "clips_tab.slint";
+import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton } from "theme.slint";
+import { UiMediaItem, UiDeviceOption } from "types.slint";
+import { HomeTab } from "home_tab.slint";
+import { GalleryTab } from "gallery_tab.slint";
 import { SettingsTab } from "settings_tab.slint";
 
-export { UiClipItem }
+export { UiMediaItem, UiDeviceOption }
 
 export component AppWindow inherits Window {
     title: "Luna Stream";
-    preferred-width: 480px;
-    preferred-height: 580px;
-    min-width: 440px;
-    min-height: 520px;
+    preferred-width: 920px;
+    preferred-height: 620px;
+    min-width: 820px;
+    min-height: 540px;
     background: Theme.background;
 
+    // Estado de Navegação (0 = Home, 1 = Galeria, 2 = Ajustes)
     in-out property <int> active-tab: 0;
 
+    // Conexão e Diagnóstico do Motor
     in-out property <bool> daemon-connected: false;
     in-out property <string> encoder-label: "Detectando...";
     in-out property <string> error-banner: "";
+    in-out property <string> profile-summary-label: "1080p60 · 12.000 Kbps";
 
+    // Home / Replay
     in-out property <bool> replay-active: false;
     in-out property <int> replay-progress: 0;
     in-out property <string> replay-buffer-label: "0s / 30s";
     in-out property <string> replay-ram-label: "0 MB / 512 MB";
-    in-out property <string> hotkey-label: "Alt+F10";
+    in-out property <string> replay-hotkey-label: "Alt + F8";
     in-out property <bool> can-save-clip: false;
     in-out property <bool> saving-clip: false;
     in-out property <string> last-saved-label: "";
+    in-out property <bool> capturing-replay-keybind: false;
 
+    // Home / Gravação Manual
     in-out property <bool> recording: false;
-    in-out property <string> record-status-label: "";
+    in-out property <string> record-status-label: "Inativa";
+    in-out property <string> record-hotkey-label: "Alt + F9";
     in-out property <bool> shared-session: false;
     in-out property <string> restart-hint: "";
+    in-out property <bool> capturing-record-keybind: false;
 
-    in-out property <[UiClipItem]> clips: [];
-    in-out property <bool> undo-banner-visible: false;
+    // Home / Carrossel Recentes
+    in-out property <[UiMediaItem]> recent-items: [];
 
+    // Galeria
+    in-out property <[UiMediaItem]> gallery-items: [];
+    in-out property <string> confirming-delete-path: "";
+    in-out property <string> filter-kind: "all";
+    in-out property <string> filter-format: "all";
+    in-out property <string> filter-year: "all";
+    in-out property <string> filter-month: "all";
+    in-out property <string> filter-day: "all";
+    in-out property <string> sort-field: "recent";
+    in-out property <string> sort-order: "desc";
+
+    // Ajustes
     in-out property <int> pref-replay-duration-secs: 30;
     in-out property <int> pref-replay-ram-mb: 512;
+    in-out property <int> pref-bitrate-kbps: 12000;
+    in-out property <int> pref-fps: 60;
+    in-out property <string> pref-resolution: "native";
     in-out property <string> pref-format: "mp4";
     in-out property <string> pref-quality: "high";
-    in-out property <int> pref-fps: 60;
+    in-out property <string> pref-audio-profile: "system";
     in-out property <bool> pref-audio-game: true;
-    in-out property <bool> pref-audio-call: true;
     in-out property <bool> pref-audio-mic: true;
+    in-out property <bool> pref-audio-call: true;
+    in-out property <string> pref-output-device: "";
+    in-out property <string> pref-mic-device: "";
+    in-out property <[UiDeviceOption]> audio-outputs: [];
+    in-out property <[UiDeviceOption]> audio-inputs: [];
+    in-out property <string> pref-replay-hotkey: "Alt + F8";
+    in-out property <string> pref-record-hotkey: "Alt + F9";
     in-out property <bool> pref-clear-after-save: false;
     in-out property <bool> pref-start-minimized: false;
 
-    in property <string> slint-attribution: "Interface construída com Slint";
+    // Limites de Hardware
+    in-out property <int> cap-max-ram-mb: 8192;
+    in-out property <int> cap-min-bitrate-kbps: 1000;
+    in-out property <int> cap-max-bitrate-kbps: 100000;
+    in-out property <int> cap-min-fps: 15;
+    in-out property <int> cap-max-fps: 240;
+    in-out property <int> cap-max-replay-secs: 600;
 
+    // Atribuição da Licença Slint (ADR-0003)
+    in property <string> slint-attribution: "Interface construída com Slint";
+    in property <string> app-version: "v0.6.0";
+
+    // Callbacks da aplicação
     callback toggle-replay();
     callback save-clip();
     callback toggle-record();
     callback dismiss-error();
+    callback open-media(string);
+    callback request-delete-media(string);
+    callback cancel-delete-media();
+    callback confirm-delete-media(string);
+    callback open-captures-dir();
+    callback filter-changed(string, string, string, string, string);
+    callback sort-changed(string, string);
+    callback refresh-gallery();
+    callback preferences-changed();
+    callback reset-default-hotkeys();
+    callback refresh-audio-devices();
+    callback open-slint-website();
+    callback start-capture-replay-hotkey();
+    callback start-capture-record-hotkey();
+    callback cancel-capture-hotkey();
+    callback key-pressed-for-capture(bool, string, bool, bool, bool, bool);
+
+    // Callbacks retrocompatíveis
     callback open-clip(string);
     callback delete-clip(string);
     callback undo-delete-clip();
     callback open-clips-dir();
-    callback preferences-changed();
-    callback open-slint-website();
 
-    VerticalLayout {
-        padding: 16px;
-        spacing: 14px;
+    // Captura de Teclas para Rebind
+    focus-scope := FocusScope {
+        key-pressed(event) => {
+            if (root.capturing-replay-keybind || root.capturing-record-keybind) {
+                let for-rec = root.capturing-record-keybind;
+                root.key-pressed-for-capture(
+                    for-rec,
+                    event.text,
+                    event.modifiers.alt,
+                    event.modifiers.control,
+                    event.modifiers.shift,
+                    event.modifiers.meta
+                );
+                return accept;
+            }
+            return reject;
+        }
 
-        // Cabeçalho unificado com marca e abas segmentadas
         HorizontalLayout {
-            height: 36px;
-            alignment: space-between;
-
-            HorizontalLayout {
-                spacing: 8px;
-                alignment: start;
-                Text {
-                    text: "Luna Stream";
-                    color: Theme.text-primary;
-                    font-size: 16px;
-                    font-weight: 800;
-                    vertical-alignment: center;
-                }
-            }
-
-            // Seletor de 3 abas segmentadas
+            // ==========================================
+            // Sidebar Esquerda (Navegação Flat 200px)
+            // ==========================================
             Rectangle {
-                width: 220px;
-                height: 32px;
-                background: Theme.surface;
-                border-width: 1px;
-                border-color: Theme.border;
-                border-radius: 8px;
+                width: 200px;
+                background: Theme.sidebar;
 
-                HorizontalLayout {
-                    padding: 2px;
-                    spacing: 2px;
+                // Divisor vertical da sidebar
+                Rectangle {
+                    x: parent.width - 1px;
+                    width: 1px;
+                    background: Theme.border;
+                }
 
-                    // Aba 0: Controle
-                    Rectangle {
-                        background: root.active-tab == 0 ? Theme.surface-elevated : transparent;
-                        border-radius: 6px;
-                        TouchArea {
-                            clicked => { root.active-tab = 0; }
-                            Text {
-                                text: "Controle";
-                                color: root.active-tab == 0 ? Theme.accent : Theme.text-secondary;
-                                font-size: 11px;
-                                font-weight: 600;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 16px;
+                    alignment: space-between;
+
+                    // Topo: Marca e Codificador
+                    VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: "Luna Stream";
+                            color: Theme.text-primary;
+                            font-size: 17px;
+                            font-weight: 800;
+                        }
+                        PillBadge {
+                            text: root.encoder-label;
+                            bg: Theme.surface-elevated;
+                            fg: Theme.text-secondary;
+                            border-col: Theme.border;
+                        }
+                    }
+
+                    // Navegação Principal pelas 3 Abas
+                    VerticalLayout {
+                        spacing: 6px;
+
+                        // Aba 0: Home
+                        Rectangle {
+                            height: 40px;
+                            border-radius: 6px;
+                            background: root.active-tab == 0 ? Theme.surface-elevated :
+                                        (home-touch.has-hover ? Theme.surface : transparent);
+
+                            if root.active-tab == 0 : Rectangle {
+                                x: 0px;
+                                width: 3px;
+                                height: parent.height;
+                                background: Theme.accent;
+                                border-radius: 2px;
+                            }
+
+                            home-touch := TouchArea {
+                                clicked => { root.active-tab = 0; }
+                                mouse-cursor: pointer;
+                            }
+
+                            HorizontalLayout {
+                                padding-left: 14px;
+                                padding-right: 14px;
+                                alignment: start;
+                                Text {
+                                    text: "Home";
+                                    color: root.active-tab == 0 ? Theme.text-primary : Theme.text-secondary;
+                                    font-size: 13px;
+                                    font-weight: root.active-tab == 0 ? 700 : 500;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+
+                        // Aba 1: Galeria
+                        Rectangle {
+                            height: 40px;
+                            border-radius: 6px;
+                            background: root.active-tab == 1 ? Theme.surface-elevated :
+                                        (gal-touch.has-hover ? Theme.surface : transparent);
+
+                            if root.active-tab == 1 : Rectangle {
+                                x: 0px;
+                                width: 3px;
+                                height: parent.height;
+                                background: Theme.accent;
+                                border-radius: 2px;
+                            }
+
+                            gal-touch := TouchArea {
+                                clicked => {
+                                    root.active-tab = 1;
+                                    root.refresh-gallery();
+                                }
+                                mouse-cursor: pointer;
+                            }
+
+                            HorizontalLayout {
+                                padding-left: 14px;
+                                padding-right: 14px;
+                                alignment: start;
+                                Text {
+                                    text: "Galeria";
+                                    color: root.active-tab == 1 ? Theme.text-primary : Theme.text-secondary;
+                                    font-size: 13px;
+                                    font-weight: root.active-tab == 1 ? 700 : 500;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+
+                        // Aba 2: Ajustes
+                        Rectangle {
+                            height: 40px;
+                            border-radius: 6px;
+                            background: root.active-tab == 2 ? Theme.surface-elevated :
+                                        (set-touch.has-hover ? Theme.surface : transparent);
+
+                            if root.active-tab == 2 : Rectangle {
+                                x: 0px;
+                                width: 3px;
+                                height: parent.height;
+                                background: Theme.accent;
+                                border-radius: 2px;
+                            }
+
+                            set-touch := TouchArea {
+                                clicked => {
+                                    root.active-tab = 2;
+                                    root.refresh-audio-devices();
+                                }
+                                mouse-cursor: pointer;
+                            }
+
+                            HorizontalLayout {
+                                padding-left: 14px;
+                                padding-right: 14px;
+                                alignment: start;
+                                Text {
+                                    text: "Ajustes";
+                                    color: root.active-tab == 2 ? Theme.text-primary : Theme.text-secondary;
+                                    font-size: 13px;
+                                    font-weight: root.active-tab == 2 ? 700 : 500;
+                                    vertical-alignment: center;
+                                }
                             }
                         }
                     }
 
-                    // Aba 1: Clipes
-                    Rectangle {
-                        background: root.active-tab == 1 ? Theme.surface-elevated : transparent;
-                        border-radius: 6px;
-                        TouchArea {
-                            clicked => { root.active-tab = 1; }
-                            Text {
-                                text: "Clipes";
-                                color: root.active-tab == 1 ? Theme.accent : Theme.text-secondary;
-                                font-size: 11px;
-                                font-weight: 600;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-                        }
-                    }
+                    // Rodapé da Sidebar: Perfil de Gravação e Status de Conexão
+                    VerticalLayout {
+                        spacing: 8px;
 
-                    // Aba 2: Ajustes
-                    Rectangle {
-                        background: root.active-tab == 2 ? Theme.surface-elevated : transparent;
-                        border-radius: 6px;
-                        TouchArea {
-                            clicked => { root.active-tab = 2; }
+                        Rectangle {
+                            height: 1px;
+                            background: Theme.border;
+                        }
+
+                        Text {
+                            text: root.profile-summary-label;
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                            font-weight: 600;
+                            overflow: elide;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 6px;
+                            alignment: start;
+
+                            Rectangle {
+                                width: 8px;
+                                height: 8px;
+                                border-radius: 4px;
+                                background: root.daemon-connected ? Theme.emerald : Theme.text-muted;
+                                y: (parent.height - self.height) / 2;
+                            }
+
                             Text {
-                                text: "Ajustes";
-                                color: root.active-tab == 2 ? Theme.accent : Theme.text-secondary;
+                                text: root.daemon-connected ? "Motor conectado" : "Desconectado";
+                                color: root.daemon-connected ? Theme.emerald : Theme.text-muted;
                                 font-size: 11px;
-                                font-weight: 600;
-                                horizontal-alignment: center;
                                 vertical-alignment: center;
                             }
                         }
                     }
                 }
             }
-        }
 
-        // Conteúdo da aba selecionada
-        if root.active-tab == 0: ControlTab {
-            daemon-connected: root.daemon-connected;
-            encoder-label: root.encoder-label;
-            error-banner: root.error-banner;
+            // ==========================================
+            // Conteúdo Principal à Direita
+            // ==========================================
+            VerticalLayout {
+                horizontal-stretch: 1;
 
-            replay-active: root.replay-active;
-            replay-progress: root.replay-progress;
-            replay-buffer-label: root.replay-buffer-label;
-            replay-ram-label: root.replay-ram-label;
-            hotkey-label: root.hotkey-label;
-            can-save-clip: root.can-save-clip;
-            saving-clip: root.saving-clip;
-            last-saved-label: root.last-saved-label;
+                // Faixa de Erro Superior (se houver)
+                if root.error-banner != "" : Rectangle {
+                    height: 40px;
+                    background: Theme.accent-muted;
 
-            recording: root.recording;
-            record-status-label: root.record-status-label;
-            shared-session: root.shared-session;
-            restart-hint: root.restart-hint;
+                    // Divisor inferior da faixa de erro
+                    Rectangle {
+                        y: parent.height - 1px;
+                        height: 1px;
+                        background: Theme.accent;
+                    }
 
-            toggle-replay => { root.toggle-replay(); }
-            save-clip => { root.save-clip(); }
-            toggle-record => { root.toggle-record(); }
-            dismiss-error => { root.dismiss-error(); }
-        }
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        alignment: space-between;
 
-        if root.active-tab == 1: ClipsTab {
-            clips: root.clips;
-            undo-banner-visible: root.undo-banner-visible;
+                        Text {
+                            text: root.error-banner;
+                            color: Theme.accent-hover;
+                            font-size: 12px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
 
-            open-clip(p) => { root.open-clip(p); }
-            delete-clip(p) => { root.delete-clip(p); }
-            undo-delete-clip => { root.undo-delete-clip(); }
-            open-clips-dir => { root.open-clips-dir(); }
-        }
+                        FlatIconButton {
+                            text: "Fechar";
+                            clicked => { root.dismiss-error(); }
+                        }
+                    }
+                }
 
-        if root.active-tab == 2: SettingsTab {
-            pref-replay-duration-secs <=> root.pref-replay-duration-secs;
-            pref-replay-ram-mb <=> root.pref-replay-ram-mb;
-            pref-format <=> root.pref-format;
-            pref-quality <=> root.pref-quality;
-            pref-fps <=> root.pref-fps;
-            pref-audio-game <=> root.pref-audio-game;
-            pref-audio-call <=> root.pref-audio-call;
-            pref-audio-mic <=> root.pref-audio-mic;
-            pref-clear-after-save <=> root.pref-clear-after-save;
-            pref-start-minimized <=> root.pref-start-minimized;
+                // Conteúdo da Aba Ativa
+                if root.active-tab == 0 : HomeTab {
+                    replay-active: root.replay-active;
+                    replay-progress: root.replay-progress;
+                    replay-buffer-label: root.replay-buffer-label;
+                    replay-ram-label: root.replay-ram-label;
+                    replay-hotkey-label: root.replay-hotkey-label;
+                    can-save-clip: root.can-save-clip;
+                    saving-clip: root.saving-clip;
+                    last-saved-label: root.last-saved-label;
+                    capturing-replay: root.capturing-replay-keybind;
 
-            slint-attribution: root.slint-attribution;
+                    recording: root.recording;
+                    record-status-label: root.record-status-label;
+                    record-hotkey-label: root.record-hotkey-label;
+                    shared-session: root.shared-session;
+                    restart-hint: root.restart-hint;
+                    capturing-record: root.capturing-record-keybind;
 
-            preferences-changed => { root.preferences-changed(); }
-            open-slint-website => { root.open-slint-website(); }
+                    recent-items: root.recent-items;
+
+                    toggle-replay => { root.toggle-replay(); }
+                    save-clip => { root.save-clip(); }
+                    toggle-record => { root.toggle-record(); }
+                    start-capture-replay => {
+                        root.capturing-replay-keybind = true;
+                        root.capturing-record-keybind = false;
+                        root.start-capture-replay-hotkey();
+                    }
+                    start-capture-record => {
+                        root.capturing-record-keybind = true;
+                        root.capturing-replay-keybind = false;
+                        root.start-capture-record-hotkey();
+                    }
+                    cancel-capture => {
+                        root.capturing-replay-keybind = false;
+                        root.capturing-record-keybind = false;
+                        root.cancel-capture-hotkey();
+                    }
+                    open-media(p) => { root.open-media(p); }
+                    navigate-to-gallery => {
+                        root.active-tab = 1;
+                        root.refresh-gallery();
+                    }
+                }
+
+                if root.active-tab == 1 : GalleryTab {
+                    gallery-items: root.gallery-items;
+                    confirming-delete-path: root.confirming-delete-path;
+                    filter-kind <=> root.filter-kind;
+                    filter-format <=> root.filter-format;
+                    sort-field <=> root.sort-field;
+                    sort-order <=> root.sort-order;
+
+                    open-media(p) => { root.open-media(p); }
+                    request-delete-media(p) => { root.request-delete-media(p); }
+                    cancel-delete-media => { root.cancel-delete-media(); }
+                    confirm-delete-media(p) => { root.confirm-delete-media(p); }
+                    open-captures-dir => { root.open-captures-dir(); }
+                    filter-changed(k, f, y, m, d) => { root.filter-changed(k, f, y, m, d); }
+                    sort-changed(f, o) => { root.sort-changed(f, o); }
+                    refresh-gallery => { root.refresh-gallery(); }
+                }
+
+                if root.active-tab == 2 : SettingsTab {
+                    pref-replay-duration-secs <=> root.pref-replay-duration-secs;
+                    pref-bitrate-kbps <=> root.pref-bitrate-kbps;
+                    pref-fps <=> root.pref-fps;
+                    pref-resolution <=> root.pref-resolution;
+                    pref-format <=> root.pref-format;
+                    pref-audio-profile <=> root.pref-audio-profile;
+                    pref-audio-mic <=> root.pref-audio-mic;
+                    pref-output-device <=> root.pref-output-device;
+                    pref-mic-device <=> root.pref-mic-device;
+                    audio-outputs: root.audio-outputs;
+                    audio-inputs: root.audio-inputs;
+                    pref-replay-hotkey: root.pref-replay-hotkey;
+                    pref-record-hotkey: root.pref-record-hotkey;
+                    capturing-replay: root.capturing-replay-keybind;
+                    capturing-record: root.capturing-record-keybind;
+                    pref-clear-after-save <=> root.pref-clear-after-save;
+                    pref-start-minimized <=> root.pref-start-minimized;
+
+                    cap-max-ram-mb: root.cap-max-ram-mb;
+                    cap-min-bitrate-kbps: root.cap-min-bitrate-kbps;
+                    cap-max-bitrate-kbps: root.cap-max-bitrate-kbps;
+                    cap-min-fps: root.cap-min-fps;
+                    cap-max-fps: root.cap-max-fps;
+                    cap-max-replay-secs: root.cap-max-replay-secs;
+
+                    slint-attribution: root.slint-attribution;
+                    app-version: root.app-version;
+
+                    preferences-changed => { root.preferences-changed(); }
+                    start-capture-replay => {
+                        root.capturing-replay-keybind = true;
+                        root.capturing-record-keybind = false;
+                        root.start-capture-replay-hotkey();
+                    }
+                    start-capture-record => {
+                        root.capturing-record-keybind = true;
+                        root.capturing-replay-keybind = false;
+                        root.start-capture-record-hotkey();
+                    }
+                    cancel-capture => {
+                        root.capturing-replay-keybind = false;
+                        root.capturing-record-keybind = false;
+                        root.cancel-capture-hotkey();
+                    }
+                    reset-default-hotkeys => { root.reset-default-hotkeys(); }
+                    open-slint-website => { root.open-slint-website(); }
+                }
+            }
         }
     }
 }

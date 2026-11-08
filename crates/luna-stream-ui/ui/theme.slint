@@ -1,25 +1,30 @@
-// Tema Luna: paleta canônica do site, tipografia e componentes base.
+// Tema canônico Luna Stream: paleta flat 100% sólida, tipografia e componentes base.
+// Invariantes estritas: zero degradês, zero animações piscantes/pulsantes, zero emojis Unicode.
 
 export global Theme {
     out property <color> background: #141414;
-    out property <color> surface: #1A1A1A;
-    out property <color> surface-elevated: #222222;
+    out property <color> sidebar: #181818;
+    out property <color> surface: #1F1F1F;
+    out property <color> surface-elevated: #282828;
+    out property <color> surface-hover: #303030;
     out property <color> border: #2C2C2C;
-    out property <color> border-active: #3A3A3A;
+    out property <color> border-active: #3E3E3E;
     out property <color> accent: #EB4141;
     out property <color> accent-hover: #F55A5A;
-    out property <color> emerald: #10B981;
-    out property <color> crimson: #EB4141;
-    out property <color> text-primary: #F5F5F5;
+    out property <color> accent-muted: #5A1E1E;
+    out property <color> emerald: #22C55E;
+    out property <color> emerald-muted: #144026;
+    out property <color> text-primary: #FFFFFF;
     out property <color> text-secondary: #A0A0A0;
     out property <color> text-muted: #646464;
+    out property <color> danger: #EB4141;
 }
 
 export component LunaCard inherits Rectangle {
     background: Theme.surface;
     border-width: 1px;
     border-color: Theme.border;
-    border-radius: 10px;
+    border-radius: 8px;
 }
 
 export component PillBadge inherits Rectangle {
@@ -32,7 +37,7 @@ export component PillBadge inherits Rectangle {
     border-width: 1px;
     border-color: border-col;
     border-radius: 6px;
-    height: 22px;
+    height: 24px;
 
     HorizontalLayout {
         padding-left: 8px;
@@ -44,6 +49,198 @@ export component PillBadge inherits Rectangle {
             font-size: 11px;
             font-weight: 600;
             vertical-alignment: center;
+        }
+    }
+}
+
+export component FlatButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    in property <bool> disabled: false;
+    in property <length> custom-height: 36px;
+    callback clicked();
+
+    height: custom-height;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: root.disabled ? Theme.border :
+                  root.danger ? (touch.has-hover ? Theme.accent-hover : Theme.accent) :
+                  root.primary ? (touch.has-hover ? Theme.accent-hover : Theme.accent) :
+                  (touch.has-hover ? Theme.border-active : Theme.border);
+
+    background: root.disabled ? Theme.surface-elevated :
+                root.danger ? (touch.has-hover ? Theme.accent-hover : Theme.accent) :
+                root.primary ? (touch.has-hover ? Theme.accent-hover : Theme.accent) :
+                (touch.has-hover ? Theme.surface-elevated : Theme.surface);
+
+    touch := TouchArea {
+        enabled: !root.disabled;
+        clicked => { root.clicked(); }
+        mouse-cursor: root.disabled ? default : pointer;
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        alignment: center;
+        Text {
+            text: root.text;
+            color: root.disabled ? Theme.text-muted :
+                   (root.primary || root.danger) ? #FFFFFF :
+                   Theme.text-primary;
+            font-size: 13px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component FlatIconButton inherits Rectangle {
+    in property <string> text: "";
+    in property <bool> active: false;
+    in property <bool> disabled: false;
+    callback clicked();
+
+    height: 36px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: root.active ? Theme.accent : (touch.has-hover ? Theme.border-active : Theme.border);
+    background: root.active ? Theme.surface-elevated : (touch.has-hover ? Theme.surface-elevated : Theme.surface);
+
+    touch := TouchArea {
+        enabled: !root.disabled;
+        clicked => { root.clicked(); }
+        mouse-cursor: root.disabled ? default : pointer;
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 6px;
+        alignment: center;
+        Text {
+            text: root.text;
+            color: root.disabled ? Theme.text-muted : (root.active ? Theme.accent : Theme.text-primary);
+            font-size: 12px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component FlatFilterChip inherits Rectangle {
+    in property <string> text;
+    in property <bool> selected: false;
+    callback clicked();
+
+    height: 28px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: root.selected ? Theme.accent : (touch.has-hover ? Theme.border-active : Theme.border);
+    background: root.selected ? Theme.accent-muted : (touch.has-hover ? Theme.surface-elevated : Theme.surface);
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        alignment: center;
+        Text {
+            text: root.text;
+            color: root.selected ? Theme.accent-hover : Theme.text-secondary;
+            font-size: 11px;
+            font-weight: root.selected ? 700 : 500;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component NumericStepper inherits Rectangle {
+    in property <int> value: 0;
+    in property <int> min-value: 0;
+    in property <int> max-value: 999999;
+    in property <int> step: 1;
+    in property <string> unit: "";
+    in property <bool> disabled: false;
+    callback value-changed(int);
+
+    height: 36px;
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: Theme.border;
+    border-radius: 6px;
+
+    HorizontalLayout {
+        padding: 2px;
+        spacing: 4px;
+
+        // Botão decrementar
+        Rectangle {
+            width: 32px;
+            background: minus-touch.has-hover ? Theme.surface-elevated : transparent;
+            border-radius: 4px;
+            minus-touch := TouchArea {
+                enabled: !root.disabled && root.value > root.min-value;
+                clicked => {
+                    let next = root.value - root.step < root.min-value ? root.min-value : root.value - root.step;
+                    root.value-changed(next);
+                }
+                mouse-cursor: root.disabled ? default : pointer;
+            }
+            Text {
+                text: "-";
+                color: (root.disabled || root.value <= root.min-value) ? Theme.text-muted : Theme.text-primary;
+                font-size: 16px;
+                font-weight: 700;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+            }
+        }
+
+        // Valor central
+        HorizontalLayout {
+            alignment: center;
+            spacing: 4px;
+            Text {
+                text: "\{root.value}";
+                color: root.disabled ? Theme.text-muted : Theme.text-primary;
+                font-size: 13px;
+                font-weight: 600;
+                vertical-alignment: center;
+            }
+            if root.unit != "" : Text {
+                text: root.unit;
+                color: Theme.text-secondary;
+                font-size: 12px;
+                vertical-alignment: center;
+            }
+        }
+
+        // Botão incrementar
+        Rectangle {
+            width: 32px;
+            background: plus-touch.has-hover ? Theme.surface-elevated : transparent;
+            border-radius: 4px;
+            plus-touch := TouchArea {
+                enabled: !root.disabled && root.value < root.max-value;
+                clicked => {
+                    let next = root.value + root.step > root.max-value ? root.max-value : root.value + root.step;
+                    root.value-changed(next);
+                }
+                mouse-cursor: root.disabled ? default : pointer;
+            }
+            Text {
+                text: "+";
+                color: (root.disabled || root.value >= root.max-value) ? Theme.text-muted : Theme.text-primary;
+                font-size: 16px;
+                font-weight: 700;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+            }
         }
     }
 }

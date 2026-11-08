@@ -1,0 +1,19 @@
+// Estruturas de dados compartilhadas pela interface Slint do Luna Stream.
+
+export struct UiMediaItem {
+    path: string,
+    title: string,
+    is-clip: bool,
+    kind-label: string,
+    format-label: string,
+    date-label: string,
+    size-label: string,
+    duration-label: string,
+    thumbnail: image,
+    has-thumbnail: bool,
+}
+
+export struct UiDeviceOption {
+    id: string,
+    label: string,
+}

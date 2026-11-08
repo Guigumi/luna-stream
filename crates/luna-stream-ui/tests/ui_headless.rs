@@ -1,18 +1,20 @@
+use luna_stream_ui::config::{AudioCaptureProfile, ResolutionPreset};
 use luna_stream_ui::{
     AppWindow, apply_snapshot_to_window, handle_window_close_request, read_preferences_from_window,
     should_start_hidden,
     supervisor::{UiCommand, UiSnapshot},
 };
 use std::rc::Rc;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::mpsc;
 
 #[test]
-fn headless_ui_bindings_callbacks_and_slint_attribution_compliance() {
+fn headless_v2_navigation_settings_gallery_and_slint_attribution() {
     i_slint_backend_testing::init_no_event_loop();
     let app = AppWindow::new().unwrap();
 
-    // Regra obrigatória ADR-0003: atribuição Slint presente e não vazia
+    // 1. Regra obrigatória ADR-0003: atribuição Slint presente e não vazia
     let attribution = app.get_slint_attribution();
     assert!(
         attribution
@@ -21,14 +23,26 @@ fn headless_ui_bindings_callbacks_and_slint_attribution_compliance() {
         "atribuição obrigatória da licença Royalty-Free 2.0 ausente: {attribution}"
     );
 
-    // Navegação de abas e aplicação de snapshot
+    // 2. Navegação de abas (0 = Home, 1 = Galeria, 2 = Ajustes)
     assert_eq!(app.get_active_tab(), 0);
+    app.set_active_tab(1);
+    assert_eq!(app.get_active_tab(), 1);
+    app.set_active_tab(2);
+    assert_eq!(app.get_active_tab(), 2);
+    app.set_active_tab(0);
+    assert_eq!(app.get_active_tab(), 0);
+
+    // 3. Aplicação de snapshot v2
     let snap = UiSnapshot {
         daemon_connected: true,
         encoder_label: "vah264enc · GPU".into(),
         replay_active: true,
         replay_progress: 80,
         replay_buffer_label: "24s / 30s".into(),
+        replay_ram_label: "38 MB / 512 MB".into(),
+        hotkey_label: "Alt + F8".into(),
+        confirming_delete_path: "/tmp/clip-confirm.mp4".into(),
+        profile_summary_label: "1080p60 · 25.000 Kbps".into(),
         ..Default::default()
     };
     apply_snapshot_to_window(&app, &snap);
@@ -36,27 +50,77 @@ fn headless_ui_bindings_callbacks_and_slint_attribution_compliance() {
     assert!(app.get_replay_active());
     assert_eq!(app.get_replay_progress(), 80);
     assert_eq!(app.get_encoder_label().as_str(), "vah264enc · GPU");
+    assert_eq!(
+        app.get_confirming_delete_path().as_str(),
+        "/tmp/clip-confirm.mp4"
+    );
 
-    // Callback de salvar clipe e leitura de preferências
-    let saved_clicked = Rc::new(AtomicBool::new(false));
-    let flag = saved_clicked.clone();
-    app.on_save_clip(move || flag.store(true, Ordering::SeqCst));
-    app.invoke_save_clip();
-    assert!(saved_clicked.load(Ordering::SeqCst));
+    // 4. Preferências em Ajustes: valores livres, bitrate em Kbps, resolução e perfil de áudio
+    app.set_pref_replay_duration_secs(90);
+    app.set_pref_bitrate_kbps(25000);
+    app.set_pref_fps(120);
+    app.set_pref_resolution("1080p".into());
+    app.set_pref_audio_profile("game_only".into());
+    app.set_pref_format("mkv".into());
 
-    app.set_pref_replay_duration_secs(60);
-    app.set_pref_audio_call(false);
-    app.set_pref_quality("ultra".into());
     let prefs = read_preferences_from_window(&app);
-    assert_eq!(prefs.replay_duration_secs, 60);
+    assert_eq!(prefs.replay_duration_secs, 90);
+    assert_eq!(prefs.bitrate_kbps, 25000);
+    assert_eq!(prefs.fps, 120);
+    assert_eq!(prefs.resolution, ResolutionPreset::P1080);
+    assert_eq!(prefs.audio_profile, AudioCaptureProfile::GameOnly);
+    assert_eq!(prefs.format, luna_stream_proto::ContainerFormat::Mkv);
+    // Somente jogo desativa microfone e chamadas
+    assert!(!prefs.audio_mic);
     assert!(!prefs.audio_call);
-    assert_eq!(prefs.quality, luna_stream_proto::QualityPreset::Ultra);
 
-    // Navega pelas abas 1 (Clipes) e 2 (Ajustes) sem falha
-    app.set_active_tab(1);
-    assert_eq!(app.get_active_tab(), 1);
-    app.set_active_tab(2);
-    assert_eq!(app.get_active_tab(), 2);
+    // 5. Confirmação dupla na exclusão de mídia
+    let requested = Rc::new(Mutex::new(String::new()));
+    let req_clone = requested.clone();
+    app.on_request_delete_media(move |path| {
+        *req_clone.lock().unwrap() = path.to_string();
+    });
+    app.invoke_request_delete_media("/tmp/clip-target.mp4".into());
+    assert_eq!(*requested.lock().unwrap(), "/tmp/clip-target.mp4");
+
+    let confirmed = Rc::new(Mutex::new(String::new()));
+    let conf_clone = confirmed.clone();
+    app.on_confirm_delete_media(move |path| {
+        *conf_clone.lock().unwrap() = path.to_string();
+    });
+    app.invoke_confirm_delete_media("/tmp/clip-target.mp4".into());
+    assert_eq!(*confirmed.lock().unwrap(), "/tmp/clip-target.mp4");
+
+    let cancelled = Rc::new(AtomicBool::new(false));
+    let cancel_clone = cancelled.clone();
+    app.on_cancel_delete_media(move || {
+        cancel_clone.store(true, Ordering::SeqCst);
+    });
+    app.invoke_cancel_delete_media();
+    assert!(cancelled.load(Ordering::SeqCst));
+
+    // 6. Callback de ordenação e filtro na Galeria
+    let sort_called = Rc::new(AtomicBool::new(false));
+    let sort_flag = sort_called.clone();
+    app.on_sort_changed(move |_f, _o| {
+        sort_flag.store(true, Ordering::SeqCst);
+    });
+    app.invoke_sort_changed("size".into(), "asc".into());
+    assert!(sort_called.load(Ordering::SeqCst));
+
+    let filter_called = Rc::new(AtomicBool::new(false));
+    let filter_flag = filter_called.clone();
+    app.on_filter_changed(move |_k, _fmt, _y, _m, _d| {
+        filter_flag.store(true, Ordering::SeqCst);
+    });
+    app.invoke_filter_changed(
+        "clip".into(),
+        "mp4".into(),
+        "2026".into(),
+        "11".into(),
+        "08".into(),
+    );
+    assert!(filter_called.load(Ordering::SeqCst));
 }
 
 #[test]

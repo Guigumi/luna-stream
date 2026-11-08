@@ -100,7 +100,7 @@ flowchart LR
 - **Saída:** transmitir + clipar com um único encode; Electron não captura mais nada.
 
 ### M7 — UI leve e visualizador sob demanda
-- App de bandeja nativo em Slint + ksni (`crates/luna-stream-ui`, binário `luna-stream` entregue antecipadamente na `v0.5.0` para Replay Buffer, Gravação e Galeria de Clipes fora do Electron).
+- App desktop nativo em Slint + ksni (`crates/luna-stream-ui`, binário `luna-stream` com interface completa `920×620` entregue na `v0.6.0` com abas Home, Galeria unificada com miniaturas, Ajustes com bitrate em Kbps, binds editáveis e alternador Somente jogo / Áudio do sistema).
 - Visualizador abre só ao assistir alguém: assinatura manual, decode GPU; ao fechar, libera tudo.
 - Electron vira opcional/legado **só depois** de cobrir as [ideias herdadas do app atual](docs/plans/2026-11-05-ideias-electron.md).
 - Prévia leve na grade; vídeo completo assinado só ao abrir o palco.

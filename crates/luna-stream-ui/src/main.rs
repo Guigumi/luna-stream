@@ -4,6 +4,8 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use luna_stream_ui::config::UiPreferences;
+use luna_stream_ui::gallery::{GalleryFilter, GallerySortField, MediaKind, SortOrder};
+use luna_stream_ui::keybind;
 use luna_stream_ui::single_instance::{InstanceRole, acquire_or_notify};
 use luna_stream_ui::supervisor::{
     SupervisorCallbacks, SupervisorConfig, UiCommand, run_supervisor,
@@ -188,6 +190,158 @@ fn main() -> ExitCode {
             if let Some(window) = app_weak.upgrade() {
                 let prefs = read_preferences_from_window(&window);
                 let _ = tx.send(UiCommand::UpdatePreferences(prefs));
+            }
+        });
+    }
+
+    {
+        let tx = cmd_tx.clone();
+        app.on_open_media(move |path_str| {
+            let _ = tx.send(UiCommand::OpenMedia(PathBuf::from(path_str.as_str())));
+        });
+    }
+
+    {
+        let tx = cmd_tx.clone();
+        app.on_request_delete_media(move |path_str| {
+            let _ = tx.send(UiCommand::RequestDeleteMedia(PathBuf::from(
+                path_str.as_str(),
+            )));
+        });
+    }
+
+    {
+        let tx = cmd_tx.clone();
+        app.on_cancel_delete_media(move || {
+            let _ = tx.send(UiCommand::CancelDeleteMedia);
+        });
+    }
+
+    {
+        let tx = cmd_tx.clone();
+        app.on_confirm_delete_media(move |path_str| {
+            let _ = tx.send(UiCommand::ConfirmDeleteMedia(PathBuf::from(
+                path_str.as_str(),
+            )));
+        });
+    }
+
+    {
+        let tx = cmd_tx.clone();
+        app.on_open_captures_dir(move || {
+            let _ = tx.send(UiCommand::OpenCapturesDir);
+        });
+    }
+
+    {
+        let tx = cmd_tx.clone();
+        app.on_refresh_gallery(move || {
+            let _ = tx.send(UiCommand::RefreshGallery);
+        });
+    }
+
+    {
+        let tx = cmd_tx.clone();
+        app.on_reset_default_hotkeys(move || {
+            let _ = tx.send(UiCommand::ResetDefaultHotkeys);
+        });
+    }
+
+    {
+        let tx = cmd_tx.clone();
+        app.on_refresh_audio_devices(move || {
+            let _ = tx.send(UiCommand::RefreshAudioDevices);
+        });
+    }
+
+    {
+        let tx = cmd_tx.clone();
+        app.on_filter_changed(move |kind, format, year, month, day| {
+            let filter = GalleryFilter {
+                kind: match kind.as_str() {
+                    "clip" => Some(MediaKind::Clip),
+                    "recording" => Some(MediaKind::Recording),
+                    _ => None,
+                },
+                format: match format.as_str() {
+                    "mp4" => Some("mp4".to_string()),
+                    "mkv" => Some("mkv".to_string()),
+                    _ => None,
+                },
+                year: year.parse::<u16>().ok(),
+                month: month.parse::<u8>().ok(),
+                day: day.parse::<u8>().ok(),
+            };
+            let _ = tx.send(UiCommand::UpdateGalleryFilter(filter));
+        });
+    }
+
+    {
+        let tx = cmd_tx.clone();
+        app.on_sort_changed(move |field, order| {
+            let sort_field = match field.as_str() {
+                "size" => GallerySortField::Size,
+                "duration" => GallerySortField::Duration,
+                _ => GallerySortField::Recent,
+            };
+            let sort_order = match order.as_str() {
+                "asc" => SortOrder::Asc,
+                _ => SortOrder::Desc,
+            };
+            let _ = tx.send(UiCommand::UpdateGallerySort {
+                field: sort_field,
+                order: sort_order,
+            });
+        });
+    }
+
+    {
+        let tx = cmd_tx.clone();
+        let app_weak = app.as_weak();
+        app.on_key_pressed_for_capture(move |for_record, text, alt, ctrl, shift, meta| {
+            match keybind::parse_key_event(&text, alt, ctrl, shift, meta) {
+                keybind::KeyCaptureOutcome::Captured(trigger) => {
+                    let _ = tx.send(UiCommand::CaptureHotkey {
+                        for_record,
+                        trigger,
+                    });
+                    if let Some(w) = app_weak.upgrade() {
+                        w.set_capturing_replay_keybind(false);
+                        w.set_capturing_record_keybind(false);
+                    }
+                }
+                keybind::KeyCaptureOutcome::ResetDefault => {
+                    let def = if for_record {
+                        keybind::DEFAULT_RECORD_HOTKEY
+                    } else {
+                        keybind::DEFAULT_REPLAY_HOTKEY
+                    };
+                    let _ = tx.send(UiCommand::CaptureHotkey {
+                        for_record,
+                        trigger: def.to_string(),
+                    });
+                    if let Some(w) = app_weak.upgrade() {
+                        w.set_capturing_replay_keybind(false);
+                        w.set_capturing_record_keybind(false);
+                    }
+                }
+                keybind::KeyCaptureOutcome::Cancelled => {
+                    if let Some(w) = app_weak.upgrade() {
+                        w.set_capturing_replay_keybind(false);
+                        w.set_capturing_record_keybind(false);
+                    }
+                }
+                keybind::KeyCaptureOutcome::IgnoredModifierOnly => {}
+            }
+        });
+    }
+
+    {
+        let app_weak = app.as_weak();
+        app.on_cancel_capture_hotkey(move || {
+            if let Some(w) = app_weak.upgrade() {
+                w.set_capturing_replay_keybind(false);
+                w.set_capturing_record_keybind(false);
             }
         });
     }

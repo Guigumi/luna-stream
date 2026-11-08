@@ -2,7 +2,7 @@
 
 Motor nativo e leve para **transmitir, gravar e clipar** a tela, feito para as salas privadas da [Luna](https://lunagg.com.br).
 
-> **Status:** M0 a M4 concluídos, e **App Nativo de Bandeja em Slint (`luna-stream`) entregue na v0.5.0** (< 30 MB RAM ocioso, 0 MB VRAM na GPU). Veja o [ROADMAP](ROADMAP.md), [ADR-0003](docs/adr/0003-toolkit-ui-nativa-slint.md) e o [Guia Manual da UI](docs/testing/slint-ui-manual.md).
+> **Status:** M0 a M4 concluídos, e **App Desktop Nativo em Slint (`luna-stream`) entregue na v0.6.0** (< 30 MB RAM ocioso, 0 MB VRAM na GPU). Veja o [ROADMAP](ROADMAP.md), [ADR-0003](docs/adr/0003-toolkit-ui-nativa-slint.md) e o [Guia Manual da UI](docs/testing/slint-ui-manual.md).
 
 ## Como Testar
 
@@ -18,9 +18,10 @@ cargo run -p luna-stream-ui
 cargo run -p luna-stream-ui -- --minimized
 ```
 
-- **Controle:** Ligue o Replay Buffer ou inicie a Gravação com 1 clique; salve clipes no botão ou via `ALT+F10`.
-- **Galeria:** Assista clipes gravados ou exclua com o botão *Desfazer* (6 segundos).
-- **Bandeja:** O ícone reflete o status em tempo real (violeta ocioso, esmeralda replay, carmesim gravação); fechar no `X` apenas recolhe para a bandeja.
+- **Home:** Controle visual do Replay Instantâneo (`Alt+F8` padrão) e Gravação Manual (`Alt+F9` padrão), status em tempo real e carrossel das últimas 3 capturas.
+- **Galeria:** Visão unificada de clipes e gravações completas com miniaturas geradas sob demanda, filtros (Tipo, Formato, Ano, Mês, Dia), ordenação e confirmação dupla na exclusão.
+- **Ajustes:** Configuração completa com bitrate em Kbps, taxas de quadros de 15 a 240 fps, resoluções predefinidas, rebinds globais via XDG Portal e alternador de perfil de áudio (`Somente jogo` isolado via PipeWire ou `Áudio do sistema`).
+- **Bandeja:** O ícone reflete o status em tempo real (cinza ocioso, esmeralda replay, carmesim gravação); fechar no `X` apenas recolhe para a bandeja.
 - **Zero VRAM em jogo:** Renderizador `winit-software` padrão não aloca contexto na GPU enquanto você joga.
 
 ### 2. Controle via Linha de Comando (CLI)
