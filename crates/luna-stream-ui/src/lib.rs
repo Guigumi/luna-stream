@@ -13,6 +13,7 @@ use crate::supervisor::{UiCommand, UiSnapshot};
 pub mod config;
 pub mod gallery;
 pub mod keybind;
+pub mod overlay;
 pub mod single_instance;
 pub mod supervisor;
 pub mod tray;
