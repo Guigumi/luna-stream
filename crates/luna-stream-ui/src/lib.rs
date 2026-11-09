@@ -13,6 +13,7 @@ use crate::supervisor::{UiCommand, UiSnapshot};
 pub mod config;
 pub mod gallery;
 pub mod keybind;
+pub mod overlay;
 pub mod single_instance;
 pub mod supervisor;
 pub mod tray;
@@ -68,6 +69,9 @@ pub fn apply_snapshot_to_window(window: &AppWindow, snap: &UiSnapshot) {
     window.set_restart_hint(snap.restart_hint.as_str().into());
 
     window.set_confirming_delete_path(snap.confirming_delete_path.as_str().into());
+
+    // Sincroniza filtro de data (ISO 8601 YYYY-MM-DD, vazio = todos)
+    window.set_filter_date(snap.filter_date.as_str().into());
 
     // Mídias recentes da Home (até 3 itens)
     let recent_ui: Vec<UiMediaItem> = snap.recent_items.iter().map(to_ui_media_item).collect();
@@ -133,6 +137,7 @@ pub fn apply_snapshot_to_window(window: &AppWindow, snap: &UiSnapshot) {
     window.set_pref_mic_device(snap.prefs.mic_device.as_str().into());
     window.set_pref_clear_after_save(snap.prefs.clear_after_save);
     window.set_pref_start_minimized(snap.prefs.start_minimized);
+    window.set_pref_overlay_enabled(snap.prefs.overlay_enabled);
 
     // Limites de Hardware da máquina
     if snap.caps.max_replay_secs > 0 {
@@ -204,6 +209,7 @@ pub fn read_preferences_from_window(window: &AppWindow) -> UiPreferences {
         output_device,
         clear_after_save: window.get_pref_clear_after_save(),
         start_minimized: window.get_pref_start_minimized(),
+        overlay_enabled: window.get_pref_overlay_enabled(),
         ..Default::default()
     }
 }

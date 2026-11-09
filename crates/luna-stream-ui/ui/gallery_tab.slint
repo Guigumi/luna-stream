@@ -1,5 +1,5 @@
 import { ListView } from "std-widgets.slint";
-import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton, FlatFilterChip } from "theme.slint";
+import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton, FlatFilterChip, CalendarPopup } from "theme.slint";
 import { UiMediaItem } from "types.slint";
 
 export component GalleryTab inherits VerticalLayout {
@@ -11,7 +11,7 @@ export component GalleryTab inherits VerticalLayout {
 
     in-out property <string> filter-kind: "all"; // all, clip, recording
     in-out property <string> filter-format: "all"; // all, mp4, mkv
-    in-out property <string> filter-year: "all";
+    in-out property <string> filter-date: ""; // ISO 8601 YYYY-MM-DD, "" = all
     in-out property <[string]> facet-years: [];
     in-out property <string> sort-field: "recent"; // recent, size, duration
     in-out property <string> sort-order: "desc"; // desc, asc
@@ -21,7 +21,7 @@ export component GalleryTab inherits VerticalLayout {
     callback cancel-delete-media();
     callback confirm-delete-media(string);
     callback open-captures-dir();
-    callback filter-changed(string, string, string, string, string);
+    callback filter-changed(string, string, string);
     callback sort-changed(string, string);
     callback refresh-gallery();
 
@@ -52,7 +52,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-kind == "all";
                         clicked => {
                             root.filter-kind = "all";
-                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-date);
                         }
                     }
                     FlatFilterChip {
@@ -60,7 +60,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-kind == "clip";
                         clicked => {
                             root.filter-kind = "clip";
-                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-date);
                         }
                     }
                     FlatFilterChip {
@@ -68,7 +68,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-kind == "recording";
                         clicked => {
                             root.filter-kind = "recording";
-                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-date);
                         }
                     }
 
@@ -86,7 +86,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-format == "all";
                         clicked => {
                             root.filter-format = "all";
-                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-date);
                         }
                     }
                     FlatFilterChip {
@@ -94,7 +94,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-format == "mp4";
                         clicked => {
                             root.filter-format = "mp4";
-                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-date);
                         }
                     }
                     FlatFilterChip {
@@ -102,7 +102,7 @@ export component GalleryTab inherits VerticalLayout {
                         selected: root.filter-format == "mkv";
                         clicked => {
                             root.filter-format = "mkv";
-                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
+                            root.filter-changed(root.filter-kind, root.filter-format, root.filter-date);
                         }
                     }
                 }
@@ -121,32 +121,25 @@ export component GalleryTab inherits VerticalLayout {
                 }
             }
 
-            // Linha 2: Filtro por Ano (se houver facetas)
-            if root.facet-years.length > 0 : HorizontalLayout {
+            // Linha 2: Filtro por data específica (calendário)
+            HorizontalLayout {
                 spacing: 8px;
                 alignment: start;
 
                 Text {
-                    text: "Ano:";
+                    text: "Data:";
                     color: Theme.text-secondary;
                     font-size: 11px;
                     font-weight: 600;
                     vertical-alignment: center;
                 }
-                FlatFilterChip {
-                    text: "Todos";
-                    selected: root.filter-year == "all";
-                    clicked => {
-                        root.filter-year = "all";
-                        root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
-                    }
-                }
-                for yr in root.facet-years : FlatFilterChip {
-                    text: yr;
-                    selected: root.filter-year == yr;
-                    clicked => {
-                        root.filter-year = yr;
-                        root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
+
+                CalendarPopup {
+                    width: 120px;
+                    selected-date: root.filter-date;
+                    date-selected(d) => {
+                        root.filter-date = d;
+                        root.filter-changed(root.filter-kind, root.filter-format, d);
                     }
                 }
             }
@@ -190,16 +183,51 @@ export component GalleryTab inherits VerticalLayout {
 
                 Rectangle { width: 8px; }
 
-                FlatFilterChip {
-                    text: root.sort-order == "desc" ? "Decrescente" : "Crescente";
-                    selected: true;
-                    clicked => {
-                        if (root.sort-order == "desc") {
-                            root.sort-order = "asc";
-                        } else {
-                            root.sort-order = "desc";
+                Rectangle {
+                    height: 28px;
+                    width: order-content.preferred-width;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: order-touch.has-hover ? Theme.border-active : Theme.border;
+                    background: order-touch.has-hover ? Theme.surface-elevated : Theme.surface;
+                    accessible-role: button;
+                    accessible-label: root.sort-order == "desc" ? "Ordem decrescente" : "Ordem crescente";
+
+                    order-touch := TouchArea {
+                        clicked => {
+                            root.sort-order = root.sort-order == "desc" ? "asc" : "desc";
+                            root.sort-changed(root.sort-field, root.sort-order);
                         }
-                        root.sort-changed(root.sort-field, root.sort-order);
+                        mouse-cursor: pointer;
+                    }
+
+                    order-content := HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 6px;
+                        alignment: center;
+
+                        Text {
+                            text: root.sort-order == "desc" ? "Decrescente" : "Crescente";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+
+                        // Seta do sentido atual: para baixo = decrescente, para cima = crescente
+                        VerticalLayout { height: 28px; alignment: center; spacing: 0;
+                            Path {
+                                width: 10px;
+                                height: 6px;
+                                viewbox-width: 10;
+                                viewbox-height: 6;
+                                commands: root.sort-order == "desc" ? "M 1 1 L 5 5 L 9 1" : "M 1 5 L 5 1 L 9 5";
+                                stroke: Theme.accent;
+                                stroke-width: 2px;
+                                fill: transparent;
+                            }
+                        }
                     }
                 }
             }

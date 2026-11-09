@@ -41,3 +41,12 @@ slint = { version = "1.18", default-features = false, features = ["std", "compat
 slint-build = "1.18"
 i-slint-backend-testing = "1.18"
 ksni = "0.3"
+tiny-skia = "0.11"
+ab_glyph = "0.2"
+fontdb = "0.24"
+smithay-client-toolkit = { version = "0.19", default-features = false, features = ["calloop"] }
+calloop = { version = "0.12" }
+wayland-client = { version = "0.31" }
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+
+

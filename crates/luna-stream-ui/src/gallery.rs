@@ -52,6 +52,7 @@ pub struct GalleryFilter {
     pub year: Option<u16>,
     pub month: Option<u8>,
     pub day: Option<u8>,
+    pub date: Option<String>, // ISO 8601 YYYY-MM-DD
 }
 
 impl GalleryFilter {
@@ -61,6 +62,7 @@ impl GalleryFilter {
             || self.year.is_some()
             || self.month.is_some()
             || self.day.is_some()
+            || self.date.is_some()
     }
 
     pub fn matches(&self, item: &GalleryItem) -> bool {
@@ -89,6 +91,7 @@ impl GalleryFilter {
         {
             return false;
         }
+        // Note: self.date (ISO string) is not used for filtering; year/month/day are used instead
         true
     }
 }

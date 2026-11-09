@@ -122,6 +122,8 @@ pub struct UiPreferences {
     pub clear_after_save: bool,
     #[serde(default)]
     pub start_minimized: bool,
+    #[serde(default = "default_true")]
+    pub overlay_enabled: bool,
 
     // Campos legados para retrocompatibilidade Slint v1 antes de Task 8
     #[serde(default = "default_ram_mb", skip_serializing)]
@@ -151,6 +153,7 @@ impl Default for UiPreferences {
             record_hotkey: default_record_hotkey(),
             clear_after_save: false,
             start_minimized: false,
+            overlay_enabled: true,
             replay_max_ram_mb: 512,
             quality: QualityPreset::High,
             audio_game: true,

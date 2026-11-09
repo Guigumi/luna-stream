@@ -1,4 +1,4 @@
-import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton } from "theme.slint";
+import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton, CalendarPopup } from "theme.slint";
 import { UiMediaItem, UiDeviceOption } from "types.slint";
 import { HomeTab } from "home_tab.slint";
 import { GalleryTab } from "gallery_tab.slint";
@@ -51,10 +51,8 @@ export component AppWindow inherits Window {
     in-out property <string> confirming-delete-path: "";
     in-out property <string> filter-kind: "all";
     in-out property <string> filter-format: "all";
-    in-out property <string> filter-year: "all";
+    in-out property <string> filter-date: "";
     in-out property <[string]> facet-years: [];
-    in-out property <string> filter-month: "all";
-    in-out property <string> filter-day: "all";
     in-out property <string> sort-field: "recent";
     in-out property <string> sort-order: "desc";
 
@@ -78,6 +76,7 @@ export component AppWindow inherits Window {
     in-out property <string> pref-record-hotkey: "Alt + F9";
     in-out property <bool> pref-clear-after-save: false;
     in-out property <bool> pref-start-minimized: false;
+    in-out property <bool> pref-overlay-enabled: true;
 
     // Limites de Hardware
     in-out property <int> cap-max-ram-mb: 8192;
@@ -101,10 +100,11 @@ export component AppWindow inherits Window {
     callback cancel-delete-media();
     callback confirm-delete-media(string);
     callback open-captures-dir();
-    callback filter-changed(string, string, string, string, string);
+    callback filter-changed(string, string, string);
     callback sort-changed(string, string);
     callback refresh-gallery();
     callback preferences-changed();
+    callback overlay-enabled-changed(bool);
     callback reset-default-hotkeys();
     callback refresh-audio-devices();
     callback open-slint-website();
@@ -395,7 +395,7 @@ export component AppWindow inherits Window {
                     confirming-delete-path: root.confirming-delete-path;
                     filter-kind <=> root.filter-kind;
                     filter-format <=> root.filter-format;
-                    filter-year <=> root.filter-year;
+                    filter-date <=> root.filter-date;
                     facet-years: root.facet-years;
                     sort-field <=> root.sort-field;
                     sort-order <=> root.sort-order;
@@ -405,7 +405,7 @@ export component AppWindow inherits Window {
                     cancel-delete-media => { root.cancel-delete-media(); }
                     confirm-delete-media(p) => { root.confirm-delete-media(p); }
                     open-captures-dir => { root.open-captures-dir(); }
-                    filter-changed(k, f, y, m, d) => { root.filter-changed(k, f, y, m, d); }
+                    filter-changed(k, f, d) => { root.filter-changed(k, f, d); }
                     sort-changed(f, o) => { root.sort-changed(f, o); }
                     refresh-gallery => { root.refresh-gallery(); }
                 }
@@ -428,6 +428,7 @@ export component AppWindow inherits Window {
                     capturing-record: root.capturing-record-keybind;
                     pref-clear-after-save <=> root.pref-clear-after-save;
                     pref-start-minimized <=> root.pref-start-minimized;
+                    pref-overlay-enabled <=> root.pref-overlay-enabled;
 
                     cap-max-ram-mb: root.cap-max-ram-mb;
                     cap-min-bitrate-kbps: root.cap-min-bitrate-kbps;
@@ -440,6 +441,7 @@ export component AppWindow inherits Window {
                     app-version: root.app-version;
 
                     preferences-changed => { root.preferences-changed(); }
+                    overlay-enabled-changed(enabled) => { root.overlay-enabled-changed(enabled); }
                     start-capture-replay => {
                         root.capturing-replay-keybind = true;
                         root.capturing-record-keybind = false;
@@ -463,4 +465,37 @@ export component AppWindow inherits Window {
             }
         }
     }
+}
+
+// Janela de teste para CalendarPopup (usada apenas em testes)
+export component CalendarPopupTestWindow inherits Window {
+    title: "CalendarPopup Test";
+    width: 300px;
+    height: 100px;
+    background: Theme.background;
+
+    in-out property <string> selected-date: "";
+    callback date-selected(string);
+
+    // Expose CalendarPopup properties and callbacks for testing
+    out property <int> calendar-focused-cell: calendar.focused-cell;
+    out property <string> calendar-selected-day: calendar.selected-day;
+    out property <bool> calendar-popup-open: calendar.popup-open;
+    in-out property <int> calendar-set-focused-cell: 0;
+    callback calendar-popup-show();
+    callback calendar-popup-close();
+
+    calendar := CalendarPopup {
+        x: 50px;
+        y: 20px;
+        selected-date: root.selected-date;
+        date-selected(date) => { root.date-selected(date); root.selected-date = date; }
+        current-year: 2026;
+        current-month: 11;
+        current-day: 8;
+        focused-cell <=> root.calendar-set-focused-cell;
+    }
+
+    calendar-popup-show => { calendar.popup-show(); }
+    calendar-popup-close => { calendar.popup-close(); }
 }

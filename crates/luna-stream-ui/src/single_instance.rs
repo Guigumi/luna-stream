@@ -9,6 +9,17 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::mpsc;
 use tokio::task::AbortHandle;
 
+use crate::overlay::OverlayEvent;
+
+/// Eventos recebidos via socket IPC da interface (`ui.sock`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UiIncomingEvent {
+    /// Solicitação para exibir e focar a janela principal.
+    ShowWindow,
+    /// Solicitação para exibir aviso visual na HUD overlay.
+    Overlay(OverlayEvent),
+}
+
 pub struct SingleInstanceGuard {
     sock_path: PathBuf,
     abort_handle: AbortHandle,
@@ -28,7 +39,7 @@ pub enum InstanceRole {
 
 pub async fn acquire_or_notify(
     sock_path: PathBuf,
-    show_tx: mpsc::UnboundedSender<()>,
+    incoming_tx: mpsc::UnboundedSender<UiIncomingEvent>,
 ) -> io::Result<InstanceRole> {
     if sock_path.exists() {
         if let Ok(mut stream) = UnixStream::connect(&sock_path).await {
@@ -58,15 +69,23 @@ pub async fn acquire_or_notify(
 
     let task = tokio::spawn(async move {
         while let Ok((stream, _)) = listener.accept().await {
-            let tx = show_tx.clone();
+            let tx = incoming_tx.clone();
             tokio::spawn(async move {
-                let mut reader = BufReader::new(stream.take(64));
+                let mut reader = BufReader::new(stream.take(4096));
                 let mut line = String::new();
-                if let Ok(n) = reader.read_line(&mut line).await
-                    && n > 0
-                    && line.trim() == "show"
-                {
-                    let _ = tx.send(());
+                while let Ok(n) = reader.read_line(&mut line).await {
+                    if n == 0 {
+                        break;
+                    }
+                    let trimmed = line.trim();
+                    if trimmed == "show" {
+                        let _ = tx.send(UiIncomingEvent::ShowWindow);
+                    } else if let Some(json_str) = trimmed.strip_prefix("overlay:") {
+                        if let Ok(event) = serde_json::from_str::<OverlayEvent>(json_str) {
+                            let _ = tx.send(UiIncomingEvent::Overlay(event));
+                        }
+                    }
+                    line.clear();
                 }
             });
         }

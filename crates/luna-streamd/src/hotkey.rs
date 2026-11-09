@@ -183,9 +183,38 @@ pub async fn bind_global_hotkeys(
     )
 }
 
+pub async fn dispatch_overlay_to_socket(sock_path: &Path, json: &str) {
+    let send_fut = async {
+        use tokio::io::AsyncWriteExt;
+        let mut stream = tokio::net::UnixStream::connect(sock_path).await?;
+        let line = format!("overlay:{json}\n");
+        stream.write_all(line.as_bytes()).await?;
+        stream.flush().await?;
+        std::io::Result::Ok(())
+    };
+    let _ = tokio::time::timeout(std::time::Duration::from_millis(100), send_fut).await;
+}
+
+pub async fn dispatch_overlay_notification(json: &str) {
+    let runtime_dir = std::env::var_os("XDG_RUNTIME_DIR");
+    let Some(sock_path) = luna_stream_proto::paths::ui_socket_path(runtime_dir.as_deref()) else {
+        return;
+    };
+    dispatch_overlay_to_socket(&sock_path, json).await;
+}
+
 pub async fn notify_clip_saved(path: &Path) {
+    let file_name = path.file_name().and_then(|f| f.to_str()).unwrap_or("clipe");
+    let payload = serde_json::json!({
+        "kind": "ClipSaved",
+        "title": "Clipe salvo",
+        "subtitle": file_name,
+    });
+    if let Ok(json) = serde_json::to_string(&payload) {
+        dispatch_overlay_notification(&json).await;
+    }
+
     if let Ok(proxy) = NotificationProxy::new().await {
-        let file_name = path.file_name().and_then(|f| f.to_str()).unwrap_or("clipe");
         let body = format!("Arquivo salvo em: {file_name}");
         let notif = Notification::new("Clipe salvo com sucesso!").body(body.as_str());
         let _ = proxy
@@ -195,6 +224,32 @@ pub async fn notify_clip_saved(path: &Path) {
 }
 
 pub async fn notify_recording_state(started: bool, path: &Path) {
+    let (ov_kind, ov_title, ov_subtitle) = if started {
+        (
+            "RecordStarted",
+            "Gravação iniciada".to_string(),
+            "Capturando vídeo e áudio".to_string(),
+        )
+    } else {
+        let file_name = path
+            .file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or("gravação");
+        (
+            "RecordStopped",
+            "Gravação salva".to_string(),
+            file_name.to_string(),
+        )
+    };
+    let payload = serde_json::json!({
+        "kind": ov_kind,
+        "title": ov_title,
+        "subtitle": ov_subtitle,
+    });
+    if let Ok(json) = serde_json::to_string(&payload) {
+        dispatch_overlay_notification(&json).await;
+    }
+
     if let Ok(proxy) = NotificationProxy::new().await {
         let (title, body) = if started {
             (

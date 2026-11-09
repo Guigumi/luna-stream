@@ -145,3 +145,20 @@ fn corrupt_or_out_of_bounds_json_recovers_to_valid_params() {
         UiPreferences::default()
     );
 }
+
+#[test]
+fn test_overlay_enabled_default_and_roundtrip() {
+    let mut prefs = UiPreferences::default();
+    assert!(prefs.overlay_enabled);
+
+    prefs.overlay_enabled = false;
+    let json = serde_json::to_string(&prefs).unwrap();
+    let loaded: UiPreferences = serde_json::from_str(&json).unwrap();
+    assert!(!loaded.overlay_enabled);
+
+    // Migração de JSON legado sem o campo overlay_enabled
+    let legacy_json = r#"{"bitrate_kbps": 12000}"#;
+    let loaded: UiPreferences = serde_json::from_str(legacy_json).unwrap();
+    assert!(loaded.overlay_enabled);
+}
+

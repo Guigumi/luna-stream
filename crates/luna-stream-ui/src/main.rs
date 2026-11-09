@@ -6,7 +6,8 @@ use clap::Parser;
 use luna_stream_ui::config::UiPreferences;
 use luna_stream_ui::gallery::{GalleryFilter, GallerySortField, MediaKind, SortOrder};
 use luna_stream_ui::keybind;
-use luna_stream_ui::single_instance::{InstanceRole, acquire_or_notify};
+use luna_stream_ui::overlay::spawn_overlay_controller;
+use luna_stream_ui::single_instance::{InstanceRole, UiIncomingEvent, acquire_or_notify};
 use luna_stream_ui::supervisor::{
     SupervisorCallbacks, SupervisorConfig, UiCommand, run_supervisor,
 };
@@ -64,8 +65,8 @@ fn main() -> ExitCode {
         }
     };
 
-    let (show_tx, mut show_rx) = mpsc::unbounded_channel();
-    let _instance_guard = match runtime.block_on(acquire_or_notify(ui_sock, show_tx)) {
+    let (incoming_tx, mut incoming_rx) = mpsc::unbounded_channel();
+    let _instance_guard = match runtime.block_on(acquire_or_notify(ui_sock, incoming_tx)) {
         Ok(InstanceRole::Primary(guard)) => guard,
         Ok(InstanceRole::SecondaryNotified) => {
             // Outra instância já está em execução e recebeu o sinal para exibir a janela
@@ -91,11 +92,28 @@ fn main() -> ExitCode {
     let tray = runtime.block_on(spawn_tray(tray_action_tx));
     let tray_available = tray.is_some();
 
-    // Encaminha sinais de instância secundária para o supervisor
-    let tx_for_show = cmd_tx.clone();
+    // Carrega ícone para overlay
+    let icon_png = std::fs::read(
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/icon.png")
+    ).unwrap_or_default();
+
+    // Spawn do OverlayController
+    let overlay_sender = spawn_overlay_controller(icon_png, true);
+
+    // Encaminha sinais de socket (show / overlay) para o supervisor
+    let tx_for_incoming = cmd_tx.clone();
+    let overlay_sender_for_socket = overlay_sender.clone();
     runtime.spawn(async move {
-        while show_rx.recv().await.is_some() {
-            let _ = tx_for_show.send(UiCommand::ShowWindow);
+        while let Some(event) = incoming_rx.recv().await {
+            match event {
+                UiIncomingEvent::ShowWindow => {
+                    let _ = tx_for_incoming.send(UiCommand::ShowWindow);
+                }
+                UiIncomingEvent::Overlay(event) => {
+                    // Dispara overlay via socket IPC
+                    let _ = overlay_sender_for_socket.send(luna_stream_ui::overlay::OverlayCommand::Show(event));
+                }
+            }
         }
     });
 
@@ -256,7 +274,17 @@ fn main() -> ExitCode {
 
     {
         let tx = cmd_tx.clone();
-        app.on_filter_changed(move |kind, format, year, month, day| {
+        app.on_filter_changed(move |kind, format, date| {
+            let (year, month, day) = if date.is_empty() {
+                (None, None, None)
+            } else {
+                let parts: Vec<&str> = date.split('-').collect();
+                (
+                    parts.get(0).and_then(|s| s.parse().ok()),
+                    parts.get(1).and_then(|s| s.parse().ok()),
+                    parts.get(2).and_then(|s| s.parse().ok()),
+                )
+            };
             let filter = GalleryFilter {
                 kind: match kind.as_str() {
                     "clip" => Some(MediaKind::Clip),
@@ -268,9 +296,10 @@ fn main() -> ExitCode {
                     "mkv" => Some("mkv".to_string()),
                     _ => None,
                 },
-                year: year.parse::<u16>().ok(),
-                month: month.parse::<u8>().ok(),
-                day: day.parse::<u8>().ok(),
+                year,
+                month,
+                day,
+                date: if date.is_empty() { None } else { Some(date.to_string()) },
             };
             let _ = tx.send(UiCommand::UpdateGalleryFilter(filter));
         });
@@ -362,6 +391,7 @@ fn main() -> ExitCode {
     // Callbacks do Supervisor para a thread principal de UI
     let app_weak_for_snap = app.as_weak();
     let app_weak_for_show = app.as_weak();
+    let overlay_sender_for_callback = overlay_sender.clone();
 
     let callbacks = SupervisorCallbacks {
         on_snapshot: Box::new(move |snap| {
@@ -385,6 +415,9 @@ fn main() -> ExitCode {
             let _ = slint::invoke_from_event_loop(|| {
                 slint::quit_event_loop().ok();
             });
+        }),
+        on_overlay: Box::new(move |event| {
+            let _ = overlay_sender_for_callback.send(luna_stream_ui::overlay::OverlayCommand::Show(event));
         }),
     };
 

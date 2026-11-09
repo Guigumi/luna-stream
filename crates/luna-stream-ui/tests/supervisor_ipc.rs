@@ -5,7 +5,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
 use tokio::sync::mpsc;
 
-use luna_stream_ui::gallery::MediaKind;
+use luna_stream_ui::gallery::{GalleryFilter, MediaKind};
 use luna_stream_ui::supervisor::{
     SupervisorCallbacks, SupervisorConfig, UiCommand, UiSnapshot, format_rpc_error_pt_br,
     run_supervisor,
@@ -182,6 +182,7 @@ async fn supervisor_lifecycle_ipc_and_gallery_v2() {
             on_quit: Box::new(move || {
                 quit_ref.store(true, Ordering::SeqCst);
             }),
+            on_overlay: Box::new(move |_event| {}),
         };
 
         let cfg = SupervisorConfig {
@@ -302,6 +303,66 @@ async fn supervisor_lifecycle_ipc_and_gallery_v2() {
 }
 
 #[test]
+fn test_filter_date_parsing() {
+    use luna_stream_ui::gallery::GalleryFilter;
+    use luna_stream_ui::gallery::MediaKind;
+
+    // Test parsing "2026-11-08" -> year=2026, month=11, day=8
+    let date_str = "2026-11-08";
+    let parts: Vec<&str> = date_str.split('-').collect();
+    assert_eq!(parts.len(), 3);
+    let year = parts[0].parse::<u16>().ok();
+    let month = parts[1].parse::<u8>().ok();
+    let day = parts[2].parse::<u8>().ok();
+    assert_eq!(year, Some(2026));
+    assert_eq!(month, Some(11));
+    assert_eq!(day, Some(8));
+
+    // Verify GalleryFilter construction with parsed date
+    let filter = GalleryFilter {
+        kind: Some(MediaKind::Clip),
+        format: Some("mp4".to_string()),
+        year,
+        month,
+        day,
+        date: Some(date_str.to_string()),
+    };
+    assert_eq!(filter.year, Some(2026));
+    assert_eq!(filter.month, Some(11));
+    assert_eq!(filter.day, Some(8));
+    assert_eq!(filter.date, Some("2026-11-08".to_string()));
+
+    // Test empty string -> all None
+    let date_str = "";
+    let (year, month, day) = if date_str.is_empty() {
+        (None, None, None)
+    } else {
+        let parts: Vec<&str> = date_str.split('-').collect();
+        (
+            parts[0].parse().ok(),
+            parts[1].parse().ok(),
+            parts[2].parse().ok(),
+        )
+    };
+    assert_eq!(year, None);
+    assert_eq!(month, None);
+    assert_eq!(day, None);
+
+    let filter = GalleryFilter {
+        kind: None,
+        format: None,
+        year,
+        month,
+        day,
+        date: if date_str.is_empty() { None } else { Some(date_str.to_string()) },
+    };
+    assert_eq!(filter.year, None);
+    assert_eq!(filter.month, None);
+    assert_eq!(filter.day, None);
+    assert_eq!(filter.date, None);
+}
+
+#[test]
 fn format_rpc_error_pt_br_messages() {
     use luna_streamctl::client::ClientError;
 
@@ -317,4 +378,180 @@ fn format_rpc_error_pt_br_messages() {
         format_rpc_error_pt_br(&ClientError::NotRunning),
         "Motor luna-streamd não encontrado. Verifique a instalação."
     );
+}
+
+#[tokio::test]
+async fn test_supervisor_syncs_filter_date() {
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+    use tokio::sync::mpsc;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let sock_path = tmp.path().join("daemon.sock");
+    let cfg_path = tmp.path().join("ui.json");
+    let recordings_dir = tmp.path().join("Luna");
+    let clips_dir = recordings_dir.join("Clips");
+    let cache_dir = tmp.path().join("cache");
+
+    std::fs::create_dir_all(&clips_dir).unwrap();
+    std::fs::create_dir_all(&cache_dir).unwrap();
+
+    let listener = UnixListener::bind(&sock_path).unwrap();
+
+    let server_task = tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let (reader, mut writer) = stream.into_split();
+                let mut reader = BufReader::new(reader);
+                let mut line = String::new();
+
+                while let Ok(n) = reader.read_line(&mut line).await {
+                    if n == 0 {
+                        break;
+                    }
+                    let req: serde_json::Value = serde_json::from_str(&line).unwrap();
+                    let id = req.get("id").cloned().unwrap_or(serde_json::json!(1));
+                    let method = req["method"].as_str().unwrap_or("");
+
+                    let resp = match method {
+                        "daemon.ping" => serde_json::json!({
+                            "jsonrpc": "2.0", "id": id,
+                            "result": { "version": "0.6.0", "protocol": 1 }
+                        }),
+                        "encoder.list" => serde_json::json!({
+                            "jsonrpc": "2.0", "id": id,
+                            "result": { "encoders": [{ "element": "vah264enc", "codec": "h264", "kind": "hardware" }], "selected": "vah264enc" }
+                        }),
+                        "system.capabilities" => serde_json::json!({
+                            "jsonrpc": "2.0", "id": id,
+                            "result": { "total_ram_mb": 16384, "max_buffer_ram_mb": 8192, "encoder_kind": "hardware", "min_bitrate_kbps": 1000, "max_bitrate_kbps": 150000, "min_fps": 15, "max_fps": 240, "max_replay_secs": 1800 }
+                        }),
+                        "audio.devices" => serde_json::json!({
+                            "jsonrpc": "2.0", "id": id,
+                            "result": { "inputs": [{ "id": "alsa_input.usb-Fifine", "label": "Fifine Mic" }], "outputs": [{ "id": "alsa_output.usb-HyperX", "label": "HyperX Cloud" }] }
+                        }),
+                        "hotkeys.configure" => serde_json::json!({
+                            "jsonrpc": "2.0", "id": id,
+                            "result": { "replay_bound": true, "replay_trigger": "ALT+F8", "record_bound": true, "record_trigger": "ALT+F9" }
+                        }),
+                        "replay.status" => serde_json::json!({
+                            "jsonrpc": "2.0", "id": id,
+                            "result": { "active": false, "buffered_ms": 0, "ram_bytes": 0, "duration_secs": 30, "max_ram_mb": 512, "encoder": "vah264enc", "hotkey_bound": true, "last_error": null }
+                        }),
+                        "record.status" => serde_json::json!({
+                            "jsonrpc": "2.0", "id": id,
+                            "result": { "recording": false, "duration_ms": 0, "bytes_written": 0 }
+                        }),
+                        "media.inspect" => serde_json::json!({
+                            "jsonrpc": "2.0", "id": id,
+                            "result": { "duration_ms": 25000, "thumb_written": true }
+                        }),
+                        _ => serde_json::json!({
+                            "jsonrpc": "2.0", "id": id,
+                            "error": { "code": -32601, "message": "Method not found" }
+                        }),
+                    };
+                    let mut bytes = serde_json::to_vec(&resp).unwrap();
+                    bytes.push(b'\n');
+                    let _ = writer.write_all(&bytes).await;
+                    line.clear();
+                }
+            });
+        }
+    });
+
+    // Create test clips with different dates
+    let clip_nov8 = clips_dir.join("Clip_2026-11-08_10-00-00_Test.mp4");
+    let clip_nov9 = clips_dir.join("Clip_2026-11-09_10-00-00_Test.mp4");
+    let clip_oct15 = clips_dir.join("Clip_2026-10-15_10-00-00_Test.mp4");
+    std::fs::write(&clip_nov8, vec![0u8; 10000]).unwrap();
+    std::fs::write(&clip_nov9, vec![0u8; 10000]).unwrap();
+    std::fs::write(&clip_oct15, vec![0u8; 10000]).unwrap();
+
+    let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+    let last_snapshot = Arc::new(Mutex::new(UiSnapshot::default()));
+    let snap_ref = last_snapshot.clone();
+
+    let quit_called = Arc::new(AtomicBool::new(false));
+    let quit_ref = quit_called.clone();
+
+    let callbacks = SupervisorCallbacks {
+        on_snapshot: Box::new(move |snap| {
+            let mut guard = snap_ref.lock().unwrap();
+            *guard = snap;
+        }),
+        on_show_window: Box::new(|| {}),
+        on_quit: Box::new(move || { quit_ref.store(true, Ordering::SeqCst); }),
+        on_overlay: Box::new(move |_event| {}),
+    };
+
+    let cfg = SupervisorConfig {
+        socket_path: sock_path,
+        config_path: cfg_path,
+        clips_dir: clips_dir.clone(),
+        daemon_bin_override: None,
+        auto_spawn: false,
+    };
+
+    let sup_task = tokio::spawn(run_supervisor(cfg, cmd_rx, None, callbacks));
+
+    tokio::time::sleep(Duration::from_millis(800)).await;
+
+    // Initial snapshot should have empty filter_date
+    {
+        let snap = last_snapshot.lock().unwrap().clone();
+        assert!(snap.daemon_connected);
+        assert_eq!(snap.filter_date.as_str(), "");
+        assert_eq!(snap.gallery_items.len(), 3);
+    }
+
+    // Send UpdateGalleryFilter with date filter
+    cmd_tx
+        .send(UiCommand::UpdateGalleryFilter(GalleryFilter {
+            kind: None,
+            format: None,
+            year: Some(2026),
+            month: Some(11),
+            day: Some(8),
+            date: Some("2026-11-08".to_string()),
+        }))
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    // Snapshot should now have filter_date = "2026-11-08"
+    {
+        let snap = last_snapshot.lock().unwrap().clone();
+        assert_eq!(snap.filter_date.as_str(), "2026-11-08");
+        // Gallery items should be filtered (only Nov 8)
+        assert_eq!(snap.gallery_items.len(), 1);
+        assert_eq!(snap.gallery_items[0].day, 8);
+        assert_eq!(snap.gallery_items[0].month, 11);
+    }
+
+    // Clear filter (empty date)
+    cmd_tx
+        .send(UiCommand::UpdateGalleryFilter(GalleryFilter {
+            kind: None,
+            format: None,
+            year: None,
+            month: None,
+            day: None,
+            date: None,
+        }))
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    {
+        let snap = last_snapshot.lock().unwrap().clone();
+        assert_eq!(snap.filter_date.as_str(), "");
+        // All items should be visible again
+        assert_eq!(snap.gallery_items.len(), 3);
+    }
+
+    cmd_tx.send(UiCommand::Quit).unwrap();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(quit_called.load(Ordering::SeqCst));
+
+    server_task.abort();
+    sup_task.abort();
 }
