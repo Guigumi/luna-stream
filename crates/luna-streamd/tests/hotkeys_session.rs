@@ -76,3 +76,37 @@ async fn test_session_manager_toggle_record_cycle() {
     let metadata = std::fs::metadata(&output_file).expect("metadata");
     assert!(metadata.len() > 1024, "Arquivo deve ter conteúdo gravado");
 }
+
+#[tokio::test]
+async fn test_notify_functions_dispatch_overlay_to_ui_socket() {
+    let dir = tempdir().unwrap();
+    let sock_dir = dir.path().join("luna-stream");
+    std::fs::create_dir_all(&sock_dir).unwrap();
+    let sock_path = sock_dir.join("ui.sock");
+
+    let listener = tokio::net::UnixListener::bind(&sock_path).unwrap();
+
+    let payload = serde_json::json!({
+        "kind": "ClipSaved",
+        "title": "Clipe salvo",
+        "subtitle": "test_clip_123.mp4",
+    });
+    let json = serde_json::to_string(&payload).unwrap();
+
+    let sock_clone = sock_path.clone();
+    tokio::spawn(async move {
+        luna_streamd::hotkey::dispatch_overlay_to_socket(&sock_clone, &json).await;
+    });
+
+    let (mut stream, _) = listener.accept().await.unwrap();
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    let mut reader = BufReader::new(&mut stream);
+    let mut line = String::new();
+    reader.read_line(&mut line).await.unwrap();
+    assert!(line.starts_with("overlay:"));
+    let json_str = line.trim().strip_prefix("overlay:").unwrap();
+    let val: serde_json::Value = serde_json::from_str(json_str).unwrap();
+    assert_eq!(val["kind"], "ClipSaved");
+    assert_eq!(val["title"], "Clipe salvo");
+    assert_eq!(val["subtitle"], "test_clip_123.mp4");
+}

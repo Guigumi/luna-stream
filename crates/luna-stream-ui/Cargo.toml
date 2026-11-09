@@ -32,6 +32,9 @@ tiny-skia.workspace = true
 ab_glyph.workspace = true
 fontdb.workspace = true
 smithay-client-toolkit.workspace = true
+calloop.workspace = true
+wayland-client.workspace = true
+wayland-protocols-wlr.workspace = true
 
 
 [build-dependencies]

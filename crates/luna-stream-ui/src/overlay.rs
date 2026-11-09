@@ -328,3 +328,24 @@ pub fn render_overlay_frame(event: &OverlayEvent, icon_png: &[u8]) -> Vec<u8> {
     }
     argb
 }
+
+/// Controlador da HUD Overlay via Wayland Layer-Shell (stub - implementação completa requer API específica).
+///
+/// A renderização do frame já está implementada em `render_overlay_frame`.
+/// Esta função retorna um sender que pode ser usado para enviar eventos de overlay.
+/// Em ambientes sem Wayland/layer-shell, opera em modo no-op.
+pub fn spawn_overlay_controller(_icon_png: Vec<u8>, _overlay_enabled: bool) -> calloop::channel::Sender<OverlayCommand> {
+    let (sender, _channel) = calloop::channel::channel();
+    sender
+}
+
+/// Comando interno para o loop do OverlayController (stub).
+#[derive(Debug, Clone)]
+pub enum OverlayCommand {
+    /// Mostra/atualiza a overlay com o evento dado.
+    Show(OverlayEvent),
+    /// Fecha a overlay imediatamente.
+    Close,
+    /// Encerra o controlador.
+    Quit,
+}

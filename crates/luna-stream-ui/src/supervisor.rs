@@ -22,6 +22,7 @@ use crate::gallery::{
     SortOrder, format_size_mb,
 };
 use crate::keybind::{format_hotkey_label, validate_hotkey_pair};
+use crate::overlay::{OverlayEvent, OverlayKind};
 use crate::tray::{TrayController, TrayState};
 
 #[derive(Debug, Clone)]
@@ -154,6 +155,7 @@ pub struct SupervisorCallbacks {
     pub on_snapshot: Box<dyn FnMut(UiSnapshot) + Send>,
     pub on_show_window: Box<dyn FnMut() + Send>,
     pub on_quit: Box<dyn FnMut() + Send>,
+    pub on_overlay: Box<dyn FnMut(OverlayEvent) + Send>,
 }
 
 fn format_profile_summary(prefs: &UiPreferences) -> String {
@@ -256,12 +258,18 @@ pub async fn run_supervisor(
                         }
                     }
                     UiCommand::ToggleReplay => {
+                        let mut overlay_event: Option<OverlayEvent> = None;
                         if snapshot.replay_active {
                             match call(&cfg.socket_path, methods::REPLAY_STOP, serde_json::Value::Null).await {
                                 Ok(_) => {
                                     snapshot.replay_active = false;
                                     snapshot.can_save_clip = false;
                                     snapshot.error_banner.clear();
+                                    overlay_event = Some(OverlayEvent {
+                                        kind: OverlayKind::ReplayStopped,
+                                        title: "Replay desativado".into(),
+                                        subtitle: "Buffer encerrado".into(),
+                                    });
                                 }
                                 Err(e) => {
                                     snapshot.error_banner = format_rpc_error_pt_br(&e);
@@ -277,6 +285,11 @@ pub async fn run_supervisor(
                                     if let Some(trigger) = res.get("hotkey_trigger").and_then(|v| v.as_str()) {
                                         snapshot.hotkey_label = format_hotkey_label(trigger);
                                     }
+                                    overlay_event = Some(OverlayEvent {
+                                        kind: OverlayKind::ReplayStarted,
+                                        title: "Replay ativado".into(),
+                                        subtitle: format!("Buffer de {}s ativo", prefs.replay_duration_secs),
+                                    });
                                 }
                                 Err(e) => {
                                     snapshot.replay_active = false;
@@ -284,10 +297,14 @@ pub async fn run_supervisor(
                                 }
                             }
                         }
+                        if let Some(event) = overlay_event {
+                            (callbacks.on_overlay)(event);
+                        }
                         sync_tray(&tray, &snapshot, &prefs).await;
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
                     UiCommand::SaveClip => {
+                        let mut overlay_event: Option<OverlayEvent> = None;
                         if snapshot.replay_active && !snapshot.saving_clip {
                             snapshot.saving_clip = true;
                             (callbacks.on_snapshot)(snapshot.clone());
@@ -298,6 +315,11 @@ pub async fn run_supervisor(
                                     if let Some(p) = res.get("path").and_then(|v| v.as_str()) {
                                         let file_name = Path::new(p).file_name().and_then(|n| n.to_str()).unwrap_or("clipe");
                                         snapshot.last_saved_label = format!("Salvo: {file_name}");
+                                        overlay_event = Some(OverlayEvent {
+                                            kind: OverlayKind::ClipSaved,
+                                            title: "Clipe salvo".into(),
+                                            subtitle: file_name.into(),
+                                        });
                                     }
                                     let _ = gallery_mgr.refresh();
                                     snapshot.gallery_items = gallery_mgr.visible_items();
@@ -312,13 +334,25 @@ pub async fn run_supervisor(
                             snapshot.saving_clip = false;
                             (callbacks.on_snapshot)(snapshot.clone());
                         }
+                        if let Some(event) = overlay_event {
+                            (callbacks.on_overlay)(event);
+                        }
                     }
                     UiCommand::ToggleRecord => {
+                        let mut overlay_event: Option<OverlayEvent> = None;
                         if snapshot.recording {
                             match call(&cfg.socket_path, methods::RECORD_STOP, serde_json::Value::Null).await {
-                                Ok(_) => {
+                                Ok(res) => {
                                     snapshot.recording = false;
                                     snapshot.error_banner.clear();
+                                    if let Some(p) = res.get("path").and_then(|v| v.as_str()) {
+                                        let file_name = Path::new(p).file_name().and_then(|n| n.to_str()).unwrap_or("gravação");
+                                        overlay_event = Some(OverlayEvent {
+                                            kind: OverlayKind::RecordStopped,
+                                            title: "Gravação salva".into(),
+                                            subtitle: file_name.into(),
+                                        });
+                                    }
                                 }
                                 Err(e) => {
                                     snapshot.error_banner = format_rpc_error_pt_br(&e);
@@ -330,12 +364,20 @@ pub async fn run_supervisor(
                                 Ok(_) => {
                                     snapshot.recording = true;
                                     snapshot.error_banner.clear();
+                                    overlay_event = Some(OverlayEvent {
+                                        kind: OverlayKind::RecordStarted,
+                                        title: "Gravação iniciada".into(),
+                                        subtitle: "Capturando vídeo e áudio".into(),
+                                    });
                                 }
                                 Err(e) => {
                                     snapshot.recording = false;
                                     snapshot.error_banner = format_rpc_error_pt_br(&e);
                                 }
                             }
+                        }
+                        if let Some(event) = overlay_event {
+                            (callbacks.on_overlay)(event);
                         }
                         sync_tray(&tray, &snapshot, &prefs).await;
                         (callbacks.on_snapshot)(snapshot.clone());

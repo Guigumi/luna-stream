@@ -182,6 +182,7 @@ async fn supervisor_lifecycle_ipc_and_gallery_v2() {
             on_quit: Box::new(move || {
                 quit_ref.store(true, Ordering::SeqCst);
             }),
+            on_overlay: Box::new(move |_event| {}),
         };
 
         let cfg = SupervisorConfig {
