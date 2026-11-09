@@ -274,7 +274,7 @@ fn main() -> ExitCode {
 
     {
         let tx = cmd_tx.clone();
-        app.on_filter_changed(move |kind, format, year, month, day| {
+        app.on_filter_changed(move |kind, format, date| {
             let filter = GalleryFilter {
                 kind: match kind.as_str() {
                     "clip" => Some(MediaKind::Clip),
@@ -286,9 +286,10 @@ fn main() -> ExitCode {
                     "mkv" => Some("mkv".to_string()),
                     _ => None,
                 },
-                year: year.parse::<u16>().ok(),
-                month: month.parse::<u8>().ok(),
-                day: day.parse::<u8>().ok(),
+                year: None,
+                month: None,
+                day: None,
+                date: if date.is_empty() { None } else { Some(date.to_string()) },
             };
             let _ = tx.send(UiCommand::UpdateGalleryFilter(filter));
         });

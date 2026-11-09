@@ -51,10 +51,8 @@ export component AppWindow inherits Window {
     in-out property <string> confirming-delete-path: "";
     in-out property <string> filter-kind: "all";
     in-out property <string> filter-format: "all";
-    in-out property <string> filter-year: "all";
+    in-out property <string> filter-date: "";
     in-out property <[string]> facet-years: [];
-    in-out property <string> filter-month: "all";
-    in-out property <string> filter-day: "all";
     in-out property <string> sort-field: "recent";
     in-out property <string> sort-order: "desc";
 
@@ -102,7 +100,7 @@ export component AppWindow inherits Window {
     callback cancel-delete-media();
     callback confirm-delete-media(string);
     callback open-captures-dir();
-    callback filter-changed(string, string, string, string, string);
+    callback filter-changed(string, string, string);
     callback sort-changed(string, string);
     callback refresh-gallery();
     callback preferences-changed();
@@ -398,7 +396,7 @@ export component AppWindow inherits Window {
                     confirming-delete-path: root.confirming-delete-path;
                     filter-kind <=> root.filter-kind;
                     filter-format <=> root.filter-format;
-                    filter-year <=> root.filter-year;
+                    filter-date <=> root.filter-date;
                     facet-years: root.facet-years;
                     sort-field <=> root.sort-field;
                     sort-order <=> root.sort-order;
@@ -408,7 +406,7 @@ export component AppWindow inherits Window {
                     cancel-delete-media => { root.cancel-delete-media(); }
                     confirm-delete-media(p) => { root.confirm-delete-media(p); }
                     open-captures-dir => { root.open-captures-dir(); }
-                    filter-changed(k, f, y, m, d) => { root.filter-changed(k, f, y, m, d); }
+                    filter-changed(k, f, d) => { root.filter-changed(k, f, d); }
                     sort-changed(f, o) => { root.sort-changed(f, o); }
                     refresh-gallery => { root.refresh-gallery(); }
                 }

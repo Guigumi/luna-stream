@@ -111,17 +111,38 @@ fn headless_v2_navigation_settings_gallery_and_slint_attribution() {
 
     let filter_called = Rc::new(AtomicBool::new(false));
     let filter_flag = filter_called.clone();
-    app.on_filter_changed(move |_k, _fmt, _y, _m, _d| {
+    app.on_filter_changed(move |_k, _fmt, _d| {
         filter_flag.store(true, Ordering::SeqCst);
     });
-    app.invoke_filter_changed(
-        "clip".into(),
-        "mp4".into(),
-        "2026".into(),
-        "11".into(),
-        "08".into(),
-    );
+    app.invoke_filter_changed("clip".into(), "mp4".into(), "2026-11-08".into());
     assert!(filter_called.load(Ordering::SeqCst));
+}
+
+#[test]
+fn test_calendar_popup_filters_gallery() {
+    i_slint_backend_testing::init_no_event_loop();
+    let app = AppWindow::new().unwrap();
+
+    // Test the new filter-date property exists and works
+    // Initially filter-date should be empty string (all dates)
+    assert_eq!(app.get_filter_date().as_str(), "");
+
+    // Set filter-date to a specific ISO date
+    app.set_filter_date("2026-11-08".into());
+    assert_eq!(app.get_filter_date().as_str(), "2026-11-08");
+
+    // Verify filter-changed callback is invoked with new signature (kind, format, date)
+    let filter_called = Rc::new(AtomicBool::new(false));
+    let filter_flag = filter_called.clone();
+    app.on_filter_changed(move |_k, _fmt, _d| {
+        filter_flag.store(true, Ordering::SeqCst);
+    });
+    app.invoke_filter_changed("all".into(), "all".into(), "2026-11-08".into());
+    assert!(filter_called.load(Ordering::SeqCst));
+
+    // Clear filter (empty string = all dates)
+    app.set_filter_date("".into());
+    assert_eq!(app.get_filter_date().as_str(), "");
 }
 
 #[test]
