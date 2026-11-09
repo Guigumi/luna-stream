@@ -78,6 +78,7 @@ export component AppWindow inherits Window {
     in-out property <string> pref-record-hotkey: "Alt + F9";
     in-out property <bool> pref-clear-after-save: false;
     in-out property <bool> pref-start-minimized: false;
+    in-out property <bool> pref-overlay-enabled: true;
 
     // Limites de Hardware
     in-out property <int> cap-max-ram-mb: 8192;
@@ -105,6 +106,7 @@ export component AppWindow inherits Window {
     callback sort-changed(string, string);
     callback refresh-gallery();
     callback preferences-changed();
+    callback overlay-enabled-changed(bool);
     callback reset-default-hotkeys();
     callback refresh-audio-devices();
     callback open-slint-website();
@@ -428,6 +430,7 @@ export component AppWindow inherits Window {
                     capturing-record: root.capturing-record-keybind;
                     pref-clear-after-save <=> root.pref-clear-after-save;
                     pref-start-minimized <=> root.pref-start-minimized;
+                    pref-overlay-enabled <=> root.pref-overlay-enabled;
 
                     cap-max-ram-mb: root.cap-max-ram-mb;
                     cap-min-bitrate-kbps: root.cap-min-bitrate-kbps;
@@ -440,6 +443,7 @@ export component AppWindow inherits Window {
                     app-version: root.app-version;
 
                     preferences-changed => { root.preferences-changed(); }
+                    overlay-enabled-changed(enabled) => { root.overlay-enabled-changed(enabled); }
                     start-capture-replay => {
                         root.capturing-replay-keybind = true;
                         root.capturing-record-keybind = false;

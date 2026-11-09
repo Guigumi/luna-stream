@@ -347,6 +347,7 @@ pub async fn run_supervisor(
                         new_prefs.replay_hotkey = prefs.replay_hotkey.clone();
                         new_prefs.record_hotkey = prefs.record_hotkey.clone();
                         prefs = new_prefs;
+                        // Salva preferências persistidas no disco (incluindo overlay_enabled)
                         let _ = prefs.save_to(&cfg.config_path);
                         snapshot.prefs = prefs.clone();
                         snapshot.profile_summary_label = format_profile_summary(&prefs);

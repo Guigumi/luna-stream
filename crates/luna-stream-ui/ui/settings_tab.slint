@@ -21,6 +21,7 @@ export component SettingsTab inherits Flickable {
     in-out property <bool> capturing-record: false;
     in-out property <bool> pref-clear-after-save: false;
     in-out property <bool> pref-start-minimized: false;
+    in-out property <bool> pref-overlay-enabled: true;
 
     in-out property <int> cap-max-ram-mb: 8192;
     in-out property <int> cap-min-bitrate-kbps: 1000;
@@ -33,6 +34,7 @@ export component SettingsTab inherits Flickable {
     in property <string> app-version: "v0.6.0";
 
     callback preferences-changed();
+    callback overlay-enabled-changed(bool);
     callback start-capture-replay();
     callback start-capture-record();
     callback cancel-capture();
@@ -572,6 +574,33 @@ export component SettingsTab inherits Flickable {
                         selected: root.pref-start-minimized;
                         clicked => {
                             root.pref-start-minimized = !root.pref-start-minimized;
+                            root.preferences-changed();
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Overlay na tela";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "Exibe avisos rápidos sobre jogos ao salvar clipes ou gravar.";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                        }
+                    }
+                    FlatFilterChip {
+                        text: root.pref-overlay-enabled ? "Ativada" : "Desativada";
+                        selected: root.pref-overlay-enabled;
+                        clicked => {
+                            root.pref-overlay-enabled = !root.pref-overlay-enabled;
+                            root.overlay-enabled-changed(root.pref-overlay-enabled);
                             root.preferences-changed();
                         }
                     }

@@ -133,6 +133,7 @@ pub fn apply_snapshot_to_window(window: &AppWindow, snap: &UiSnapshot) {
     window.set_pref_mic_device(snap.prefs.mic_device.as_str().into());
     window.set_pref_clear_after_save(snap.prefs.clear_after_save);
     window.set_pref_start_minimized(snap.prefs.start_minimized);
+    window.set_pref_overlay_enabled(snap.prefs.overlay_enabled);
 
     // Limites de Hardware da máquina
     if snap.caps.max_replay_secs > 0 {
@@ -204,6 +205,7 @@ pub fn read_preferences_from_window(window: &AppWindow) -> UiPreferences {
         output_device,
         clear_after_save: window.get_pref_clear_after_save(),
         start_minimized: window.get_pref_start_minimized(),
+        overlay_enabled: window.get_pref_overlay_enabled(),
         ..Default::default()
     }
 }
