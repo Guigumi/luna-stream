@@ -337,15 +337,17 @@ component CalendarDay inherits Rectangle {
     in property <bool> current-month: true;
     in property <bool> is-today: false;
     in property <bool> selected: false;
+    in property <bool> focused: false;
     callback clicked();
 
     width: 36px;
     height: 36px;
     border-radius: 4px;
     background: root.selected ? Theme.accent :
+                root.focused ? Theme.surface-hover :
                 root.is-today ? Theme.accent-muted :
                 touch.has-hover ? Theme.surface-hover : transparent;
-    border-width: root.is-today && !root.selected ? 1px : 0px;
+    border-width: (root.is-today && !root.selected) || root.focused ? 1px : 0px;
     border-color: Theme.accent;
 
     touch := TouchArea {
@@ -516,9 +518,26 @@ export component CalendarPopup inherits Rectangle {
 
     property <int> view-year: 2026;
     property <int> view-month: 11;
-    property <string> selected-day: "";
+    out property <string> selected-day: cell-date-from-index(root.focused-cell);
+    in-out property <int> focused-cell: 0;
+    out property <bool> popup-open: popup.is-open;
+    callback popup-show();
+    callback popup-close();
 
     property <[string]> weekday-labels: ["Do", "Se", "Te", "Qu", "Qu", "Se", "Sá"];
+
+    function cell-date-from-index(idx: int) -> string {
+        if (idx < root.first-weekday) {
+            let day = root.prev-days - root.first-weekday + idx + 1;
+            return root.prev-year + "-" + (root.prev-month < 10 ? "0" + root.prev-month : root.prev-month + "") + "-" + (day < 10 ? "0" + day : day + "");
+        } else if (idx < root.first-weekday + root.days-in-month) {
+            let day = idx - root.first-weekday + 1;
+            return root.view-year + "-" + (root.view-month < 10 ? "0" + root.view-month : root.view-month + "") + "-" + (day < 10 ? "0" + day : day + "");
+        } else {
+            let day = idx - root.first-weekday - root.days-in-month + 1;
+            return root.next-year + "-" + (root.next-month < 10 ? "0" + root.next-month : root.next-month + "") + "-" + (day < 10 ? "0" + day : day + "");
+        }
+    }
 
     property <int> days-in-month: [
         31,
@@ -619,12 +638,14 @@ export component CalendarPopup inherits Rectangle {
                             property <int> day-num: is-prev || is-next ? 0 : day-curr;
                             property <bool> is-today-cell: cell-date == root.today-date;
                             property <bool> is-selected: cell-date == root.selected-date || (root.selected-date == "" && cell-date == root.selected-day && root.selected-day != "");
+                            property <bool> is-focused: cell-idx == root.focused-cell;
 
                             date: cell-date;
                             day-number: day-num;
                             current-month: is-current;
                             is-today: is-today-cell;
                             selected: is-selected;
+                            focused: is-focused;
                             clicked => {
                                 root.selected-day = cell-date;
                                 root.date-selected(cell-date);
@@ -665,26 +686,56 @@ export component CalendarPopup inherits Rectangle {
                 popup.close();
                 return accept;
             }
-            if (event.text == "\u{0d}" && popup.is-open && root.selected-day != "") {
-                root.date-selected(root.selected-day);
-                root.selected-date = root.selected-day;
+            if (event.text == "\u{0d}" && popup.is-open) {
+                root.date-selected(cell-date-from-index(root.focused-cell));
+                root.selected-date = cell-date-from-index(root.focused-cell);
                 popup.close();
                 return accept;
             }
             if (event.text == "\u{f704}" && popup.is-open) {
                 root.view-month = root.view-month == 1 ? 12 : root.view-month - 1;
                 root.view-year = root.view-month == 12 ? root.view-year - 1 : root.view-year;
-                root.selected-day = "{root.view-year}-{root.view-month:02d}-01";
+                root.focused-cell = root.first-weekday;
                 return accept;
             }
             if (event.text == "\u{f705}" && popup.is-open) {
                 root.view-month = root.view-month == 12 ? 1 : root.view-month + 1;
                 root.view-year = root.view-month == 1 ? root.view-year + 1 : root.view-year;
-                root.selected-day = "{root.view-year}-{root.view-month:02d}-01";
+                root.focused-cell = root.first-weekday;
+                return accept;
+            }
+            // Arrow key navigation within the calendar grid
+            if (event.text == "\u{f702}" && popup.is-open) { // Left
+                let new-cell = root.focused-cell > 0 ? root.focused-cell - 1 : 0;
+                root.focused-cell = new-cell;
+                return accept;
+            }
+            if (event.text == "\u{f703}" && popup.is-open) { // Right
+                let new-cell = root.focused-cell < 41 ? root.focused-cell + 1 : 41;
+                root.focused-cell = new-cell;
+                return accept;
+            }
+            if (event.text == "\u{f700}" && popup.is-open) { // Up
+                let new-cell = root.focused-cell >= 7 ? root.focused-cell - 7 : 0;
+                root.focused-cell = new-cell;
+                return accept;
+            }
+            if (event.text == "\u{f701}" && popup.is-open) { // Down
+                let new-cell = root.focused-cell <= 34 ? root.focused-cell + 7 : 41;
+                root.focused-cell = new-cell;
                 return accept;
             }
             reject
         }
+    }
+
+    popup-show => {
+        root.focused-cell = root.first-weekday;
+        popup.show();
+    }
+
+    popup-close => {
+        popup.close();
     }
 
     trigger := TouchArea {
@@ -699,6 +750,7 @@ export component CalendarPopup inherits Rectangle {
                 } else {
                     root.selected-day = "{root.view-year}-{root.view-month:02d}-01";
                 }
+                root.focused-cell = root.first-weekday;
                 popup.show();
             }
         }

@@ -480,7 +480,15 @@ export component CalendarPopupTestWindow inherits Window {
     in-out property <string> selected-date: "";
     callback date-selected(string);
 
-    CalendarPopup {
+    // Expose CalendarPopup properties and callbacks for testing
+    out property <int> calendar-focused-cell: calendar.focused-cell;
+    out property <string> calendar-selected-day: calendar.selected-day;
+    out property <bool> calendar-popup-open: calendar.popup-open;
+    in property <int> calendar-set-focused-cell: 0;
+    callback calendar-popup-show();
+    callback calendar-popup-close();
+
+    calendar := CalendarPopup {
         x: 50px;
         y: 20px;
         selected-date: root.selected-date;
@@ -488,5 +496,8 @@ export component CalendarPopupTestWindow inherits Window {
         current-year: 2026;
         current-month: 11;
         current-day: 8;
+        focused-cell: root.calendar-set-focused-cell;
+        popup-show => { root.calendar-popup-show(); }
+        popup-close => { root.calendar-popup-close(); }
     }
 }
