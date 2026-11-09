@@ -24,6 +24,9 @@ export component HomeTab inherits VerticalLayout {
     in-out property <bool> capturing-record: false;
 
     in-out property <[UiMediaItem]> recent-items: [];
+    in property <length> available-width: 720px;
+    property <int> usable-grid-width: (root.available-width - 64px) / 1px;
+    property <int> visible-cols: Math.clamp(Math.floor((usable-grid-width + 14) / 234), 3, 6);
 
     callback toggle-replay();
     callback save-clip();
@@ -280,7 +283,7 @@ export component HomeTab inherits VerticalLayout {
 
     // Seção Inferior: Capturas Recentes
     LunaCard {
-        vertical-stretch: 0;
+        vertical-stretch: 1;
         VerticalLayout {
             padding: 16px;
             spacing: 12px;
@@ -323,7 +326,8 @@ export component HomeTab inherits VerticalLayout {
                 spacing: 14px;
                 alignment: start;
 
-                for item in root.recent-items : Rectangle {
+                for idx in Math.min(root.recent-items.length, root.visible-cols) : Rectangle {
+                    property <UiMediaItem> item: root.recent-items[idx];
                     width: 220px;
                     height: 185px;
                     background: Theme.surface-elevated;

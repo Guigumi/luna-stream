@@ -346,6 +346,7 @@ export component AppWindow inherits Window {
 
                 // Conteúdo da Aba Ativa
                 if root.active-tab == 0 : HomeTab {
+                    available-width: root.width - 200px;
                     replay-active: root.replay-active;
                     replay-progress: root.replay-progress;
                     replay-buffer-label: root.replay-buffer-label;

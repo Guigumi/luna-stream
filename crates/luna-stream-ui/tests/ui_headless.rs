@@ -4,6 +4,7 @@ use luna_stream_ui::{
     should_start_hidden,
     supervisor::{UiCommand, UiSnapshot},
 };
+use slint::Model;
 use std::rc::Rc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -142,4 +143,67 @@ fn close_and_minimized_safeguards_respect_tray_availability() {
 
     let _resp_no_tray = handle_window_close_request(false, &tx);
     assert!(matches!(rx.try_recv().unwrap(), UiCommand::Quit));
+}
+
+#[test]
+fn test_recent_items_capacity_and_dynamic_columns() {
+    // 1. Valida capacidade do supervisor para até 6 itens recentes
+    assert_eq!(
+        luna_stream_ui::supervisor::RECENT_ITEMS_CAPACITY,
+        6,
+        "supervisor deve ter capacidade para até 6 itens recentes na Home"
+    );
+
+    i_slint_backend_testing::init_no_event_loop();
+    let app = AppWindow::new().unwrap();
+
+    let recent_items: Vec<luna_stream_ui::gallery::GalleryItem> = (0..6)
+        .map(|i| luna_stream_ui::gallery::GalleryItem {
+            path: format!("/tmp/clip-{i}.mp4").into(),
+            file_name: format!("clip-{i}.mp4"),
+            kind: luna_stream_ui::gallery::MediaKind::Clip,
+            format: "mp4".into(),
+            year: 2026,
+            month: 11,
+            day: 8,
+            date_label: "08/11/2026 21:00".into(),
+            size_bytes: 1024 * 1024 * (i as u64 + 1),
+            size_label: format!("{} MB", i + 1),
+            duration_ms: 30000,
+            duration_label: "00:30".into(),
+            title: format!("Clip {i}"),
+            thumb_path: None,
+            probed: true,
+            sort_timestamp_ms: (1000 - i) as u128,
+        })
+        .collect();
+
+    let snap = UiSnapshot {
+        recent_items,
+        ..Default::default()
+    };
+    apply_snapshot_to_window(&app, &snap);
+    assert_eq!(app.get_recent_items().row_count(), 6);
+
+    // 2. Lógica de cálculo de colunas dinâmicas (clamp entre 3 e 6)
+    let calc_cols = |available_width: f32| -> i32 {
+        let usable_grid_width = (available_width - 64.0) / 1.0;
+        let cols = ((usable_grid_width + 14.0) / 234.0).floor() as i32;
+        cols.clamp(3, 6)
+    };
+
+    // Janela 820px (min-width, available-width = 620px): 3 colunas
+    assert_eq!(calc_cols(620.0), 3);
+    // Janela 1024px (available-width = 824px): 3 colunas
+    assert_eq!(calc_cols(824.0), 3);
+    // Janela 1200px (available-width = 1000px): 4 colunas
+    assert_eq!(calc_cols(1000.0), 4);
+    // Janela 1440px (available-width = 1240px): 5 colunas
+    assert_eq!(calc_cols(1240.0), 5);
+    // Janela 1920px (available-width = 1720px): 6 colunas
+    assert_eq!(calc_cols(1720.0), 6);
+    // Janela UltraWide 2560px (available-width = 2360px): clamp em 6 colunas
+    assert_eq!(calc_cols(2360.0), 6);
+    // Largura mínima reduzida (ex: 400px): clamp inferior em 3 colunas
+    assert_eq!(calc_cols(400.0), 3);
 }

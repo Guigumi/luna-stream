@@ -60,6 +60,9 @@ pub enum UiCommand {
     UndoDeleteClip,
 }
 
+/// Limite de itens recentes exibidos na aba Home.
+pub const RECENT_ITEMS_CAPACITY: usize = 6;
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct UiSnapshot {
     pub daemon_connected: bool,
@@ -202,7 +205,7 @@ pub async fn run_supervisor(
         audio_inputs: Vec::new(),
         audio_outputs: Vec::new(),
         gallery_items: gallery_mgr.visible_items(),
-        recent_items: gallery_mgr.recent_items(3),
+        recent_items: gallery_mgr.recent_items(RECENT_ITEMS_CAPACITY),
         facets: gallery_mgr.facets(),
         filter: GalleryFilter::default(),
         sort_field: GallerySortField::Recent,
@@ -232,7 +235,7 @@ pub async fn run_supervisor(
                         poll_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
                         let _ = gallery_mgr.refresh();
                         snapshot.gallery_items = gallery_mgr.visible_items();
-                        snapshot.recent_items = gallery_mgr.recent_items(3);
+                        snapshot.recent_items = gallery_mgr.recent_items(RECENT_ITEMS_CAPACITY);
                         snapshot.facets = gallery_mgr.facets();
                         snapshot.confirming_delete_path.clear();
                         (callbacks.on_show_window)();
@@ -246,7 +249,7 @@ pub async fn run_supervisor(
                         if window_visible {
                             let _ = gallery_mgr.refresh();
                             snapshot.gallery_items = gallery_mgr.visible_items();
-                            snapshot.recent_items = gallery_mgr.recent_items(3);
+                            snapshot.recent_items = gallery_mgr.recent_items(RECENT_ITEMS_CAPACITY);
                             snapshot.facets = gallery_mgr.facets();
                             snapshot.confirming_delete_path.clear();
                             (callbacks.on_snapshot)(snapshot.clone());
@@ -298,7 +301,7 @@ pub async fn run_supervisor(
                                     }
                                     let _ = gallery_mgr.refresh();
                                     snapshot.gallery_items = gallery_mgr.visible_items();
-                                    snapshot.recent_items = gallery_mgr.recent_items(3);
+                                    snapshot.recent_items = gallery_mgr.recent_items(RECENT_ITEMS_CAPACITY);
                                     snapshot.facets = gallery_mgr.facets();
                                     snapshot.error_banner.clear();
                                 }
@@ -407,7 +410,7 @@ pub async fn run_supervisor(
                     UiCommand::RefreshGallery | UiCommand::RefreshClips => {
                         let _ = gallery_mgr.refresh();
                         snapshot.gallery_items = gallery_mgr.visible_items();
-                        snapshot.recent_items = gallery_mgr.recent_items(3);
+                        snapshot.recent_items = gallery_mgr.recent_items(RECENT_ITEMS_CAPACITY);
                         snapshot.facets = gallery_mgr.facets();
                         snapshot.confirming_delete_path.clear();
                         (callbacks.on_snapshot)(snapshot.clone());
@@ -443,7 +446,7 @@ pub async fn run_supervisor(
                         {
                             snapshot.confirming_delete_path.clear();
                             snapshot.gallery_items = gallery_mgr.visible_items();
-                            snapshot.recent_items = gallery_mgr.recent_items(3);
+                            snapshot.recent_items = gallery_mgr.recent_items(RECENT_ITEMS_CAPACITY);
                             snapshot.facets = gallery_mgr.facets();
                         }
                         (callbacks.on_snapshot)(snapshot.clone());
@@ -645,7 +648,7 @@ pub async fn run_supervisor(
                             }
                         }
                         snapshot.gallery_items = gallery_mgr.visible_items();
-                        snapshot.recent_items = gallery_mgr.recent_items(3);
+                        snapshot.recent_items = gallery_mgr.recent_items(RECENT_ITEMS_CAPACITY);
                         snapshot.facets = gallery_mgr.facets();
                     }
 
