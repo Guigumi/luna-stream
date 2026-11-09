@@ -70,6 +70,9 @@ pub fn apply_snapshot_to_window(window: &AppWindow, snap: &UiSnapshot) {
 
     window.set_confirming_delete_path(snap.confirming_delete_path.as_str().into());
 
+    // Sincroniza filtro de data (ISO 8601 YYYY-MM-DD, vazio = todos)
+    window.set_filter_date(snap.filter_date.as_str().into());
+
     // Mídias recentes da Home (até 3 itens)
     let recent_ui: Vec<UiMediaItem> = snap.recent_items.iter().map(to_ui_media_item).collect();
     window.set_recent_items(Rc::new(VecModel::from(recent_ui)).into());

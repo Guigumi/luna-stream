@@ -92,7 +92,7 @@ pub struct UiSnapshot {
     pub gallery_items: Vec<GalleryItem>,
     pub recent_items: Vec<GalleryItem>,
     pub facets: GalleryFacets,
-    pub filter: GalleryFilter,
+    pub filter_date: String,
     pub sort_field: GallerySortField,
     pub sort_order: SortOrder,
     pub confirming_delete_path: String,
@@ -209,7 +209,7 @@ pub async fn run_supervisor(
         gallery_items: gallery_mgr.visible_items(),
         recent_items: gallery_mgr.recent_items(RECENT_ITEMS_CAPACITY),
         facets: gallery_mgr.facets(),
-        filter: GalleryFilter::default(),
+        filter_date: String::new(),
         sort_field: GallerySortField::Recent,
         sort_order: SortOrder::Desc,
         confirming_delete_path: String::new(),
@@ -459,7 +459,7 @@ pub async fn run_supervisor(
                     }
                     UiCommand::UpdateGalleryFilter(f) => {
                         gallery_mgr.set_filter(f.clone());
-                        snapshot.filter = f;
+                        snapshot.filter_date = f.date.unwrap_or_default();
                         snapshot.gallery_items = gallery_mgr.visible_items();
                         snapshot.confirming_delete_path.clear();
                         (callbacks.on_snapshot)(snapshot.clone());
