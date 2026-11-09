@@ -303,6 +303,66 @@ async fn supervisor_lifecycle_ipc_and_gallery_v2() {
 }
 
 #[test]
+fn test_filter_date_parsing() {
+    use luna_stream_ui::gallery::GalleryFilter;
+    use luna_stream_ui::gallery::MediaKind;
+
+    // Test parsing "2026-11-08" -> year=2026, month=11, day=8
+    let date_str = "2026-11-08";
+    let parts: Vec<&str> = date_str.split('-').collect();
+    assert_eq!(parts.len(), 3);
+    let year = parts[0].parse::<u16>().ok();
+    let month = parts[1].parse::<u8>().ok();
+    let day = parts[2].parse::<u8>().ok();
+    assert_eq!(year, Some(2026));
+    assert_eq!(month, Some(11));
+    assert_eq!(day, Some(8));
+
+    // Verify GalleryFilter construction with parsed date
+    let filter = GalleryFilter {
+        kind: Some(MediaKind::Clip),
+        format: Some("mp4".to_string()),
+        year,
+        month,
+        day,
+        date: Some(date_str.to_string()),
+    };
+    assert_eq!(filter.year, Some(2026));
+    assert_eq!(filter.month, Some(11));
+    assert_eq!(filter.day, Some(8));
+    assert_eq!(filter.date, Some("2026-11-08".to_string()));
+
+    // Test empty string -> all None
+    let date_str = "";
+    let (year, month, day) = if date_str.is_empty() {
+        (None, None, None)
+    } else {
+        let parts: Vec<&str> = date_str.split('-').collect();
+        (
+            parts[0].parse().ok(),
+            parts[1].parse().ok(),
+            parts[2].parse().ok(),
+        )
+    };
+    assert_eq!(year, None);
+    assert_eq!(month, None);
+    assert_eq!(day, None);
+
+    let filter = GalleryFilter {
+        kind: None,
+        format: None,
+        year,
+        month,
+        day,
+        date: if date_str.is_empty() { None } else { Some(date_str.to_string()) },
+    };
+    assert_eq!(filter.year, None);
+    assert_eq!(filter.month, None);
+    assert_eq!(filter.day, None);
+    assert_eq!(filter.date, None);
+}
+
+#[test]
 fn format_rpc_error_pt_br_messages() {
     use luna_streamctl::client::ClientError;
 
