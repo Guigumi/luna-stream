@@ -1,5 +1,5 @@
 use luna_stream_ui::config::{AudioCaptureProfile, ResolutionPreset};
-use luna_stream_ui::gallery::{GalleryFilter, GalleryItem, MediaKind};
+use luna_stream_ui::gallery::{GalleryItem, MediaKind};
 use luna_stream_ui::{
     AppWindow, apply_snapshot_to_window, handle_window_close_request, read_preferences_from_window,
     should_start_hidden,
