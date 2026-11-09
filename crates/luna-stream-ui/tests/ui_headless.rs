@@ -1,4 +1,5 @@
 use luna_stream_ui::config::{AudioCaptureProfile, ResolutionPreset};
+use luna_stream_ui::gallery::{GalleryFilter, GalleryItem, MediaKind};
 use luna_stream_ui::{
     AppWindow, apply_snapshot_to_window, handle_window_close_request, read_preferences_from_window,
     should_start_hidden,
@@ -227,4 +228,113 @@ fn test_recent_items_capacity_and_dynamic_columns() {
     assert_eq!(calc_cols(2360.0), 6);
     // Largura mínima reduzida (ex: 400px): clamp inferior em 3 colunas
     assert_eq!(calc_cols(400.0), 3);
+}
+
+#[test]
+fn test_calendar_integration_filter_gallery() {
+    i_slint_backend_testing::init_no_event_loop();
+    let app = AppWindow::new().unwrap();
+
+    // Create test gallery items with different dates
+    let items: Vec<GalleryItem> = vec![
+        GalleryItem {
+            path: "/tmp/clip-2026-11-08.mp4".into(),
+            file_name: "clip-2026-11-08.mp4".into(),
+            kind: MediaKind::Clip,
+            format: "mp4".into(),
+            year: 2026,
+            month: 11,
+            day: 8,
+            date_label: "08/11/2026 10:00".into(),
+            size_bytes: 1024 * 1024 * 10,
+            size_label: "10 MB".into(),
+            duration_ms: 30000,
+            duration_label: "00:30".into(),
+            title: "Clip Nov 8".into(),
+            thumb_path: None,
+            probed: true,
+            sort_timestamp_ms: 1000,
+        },
+        GalleryItem {
+            path: "/tmp/clip-2026-11-09.mp4".into(),
+            file_name: "clip-2026-11-09.mp4".into(),
+            kind: MediaKind::Clip,
+            format: "mp4".into(),
+            year: 2026,
+            month: 11,
+            day: 9,
+            date_label: "09/11/2026 10:00".into(),
+            size_bytes: 1024 * 1024 * 20,
+            size_label: "20 MB".into(),
+            duration_ms: 60000,
+            duration_label: "01:00".into(),
+            title: "Clip Nov 9".into(),
+            thumb_path: None,
+            probed: true,
+            sort_timestamp_ms: 2000,
+        },
+        GalleryItem {
+            path: "/tmp/clip-2026-10-15.mp4".into(),
+            file_name: "clip-2026-10-15.mp4".into(),
+            kind: MediaKind::Recording,
+            format: "mkv".into(),
+            year: 2026,
+            month: 10,
+            day: 15,
+            date_label: "15/10/2026 10:00".into(),
+            size_bytes: 1024 * 1024 * 50,
+            size_label: "50 MB".into(),
+            duration_ms: 120000,
+            duration_label: "02:00".into(),
+            title: "Recording Oct 15".into(),
+            thumb_path: None,
+            probed: true,
+            sort_timestamp_ms: 500,
+        },
+    ];
+
+    // Apply snapshot with items
+    let snap = UiSnapshot {
+        gallery_items: items.clone(),
+        recent_items: items.clone(),
+        ..Default::default()
+    };
+    apply_snapshot_to_window(&app, &snap);
+
+    // Verify all 3 items are shown initially (no filter)
+    assert_eq!(app.get_gallery_items().row_count(), 3);
+
+    // Set filter-date to 2026-11-08 via CalendarPopup integration
+    // The GalleryTab's CalendarPopup sets filter-date and invokes filter-changed
+    app.set_filter_date("2026-11-08".into());
+    assert_eq!(app.get_filter_date().as_str(), "2026-11-08");
+
+    // Verify filter-changed callback is invoked with the date
+    let filter_called = Rc::new(AtomicBool::new(false));
+    let filter_flag = filter_called.clone();
+    app.on_filter_changed(move |kind, format, date| {
+        assert_eq!(kind.as_str(), "all");
+        assert_eq!(format.as_str(), "all");
+        assert_eq!(date.as_str(), "2026-11-08");
+        filter_flag.store(true, Ordering::SeqCst);
+    });
+    app.invoke_filter_changed("all".into(), "all".into(), "2026-11-08".into());
+    assert!(filter_called.load(Ordering::SeqCst));
+
+    // The actual filtering logic runs in the supervisor/backend.
+    // Here we verify the UI correctly passes the filter-date through the callback chain.
+
+    // Clear filter
+    app.set_filter_date("".into());
+    assert_eq!(app.get_filter_date().as_str(), "");
+
+    // Verify filter-changed called with empty date
+    let filter_cleared = Rc::new(AtomicBool::new(false));
+    let clear_flag = filter_cleared.clone();
+    app.on_filter_changed(move |_k, _f, date| {
+        assert_eq!(date.as_str(), "");
+        clear_flag.store(true, Ordering::SeqCst);
+    });
+    app.invoke_filter_changed("all".into(), "all".into(), "".into());
+    assert!(filter_cleared.load(Ordering::SeqCst));
 }

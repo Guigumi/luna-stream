@@ -91,11 +91,7 @@ impl GalleryFilter {
         {
             return false;
         }
-        if let Some(ref date) = self.date
-            && item.date_label != *date
-        {
-            return false;
-        }
+        // Note: self.date (ISO string) is not used for filtering; year/month/day are used instead
         true
     }
 }

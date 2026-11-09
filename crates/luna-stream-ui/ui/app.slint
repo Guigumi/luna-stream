@@ -4,7 +4,7 @@ import { HomeTab } from "home_tab.slint";
 import { GalleryTab } from "gallery_tab.slint";
 import { SettingsTab } from "settings_tab.slint";
 
-export { UiMediaItem, UiDeviceOption, CalendarPopup }
+export { UiMediaItem, UiDeviceOption }
 
 export component AppWindow inherits Window {
     title: "Luna Stream";
@@ -344,7 +344,6 @@ export component AppWindow inherits Window {
 
                 // Conteúdo da Aba Ativa
                 if root.active-tab == 0 : HomeTab {
-                    available-width: root.width - 200px;
                     replay-active: root.replay-active;
                     replay-progress: root.replay-progress;
                     replay-buffer-label: root.replay-buffer-label;
@@ -482,7 +481,7 @@ export component CalendarPopupTestWindow inherits Window {
     out property <int> calendar-focused-cell: calendar.focused-cell;
     out property <string> calendar-selected-day: calendar.selected-day;
     out property <bool> calendar-popup-open: calendar.popup-open;
-    in property <int> calendar-set-focused-cell: 0;
+    in-out property <int> calendar-set-focused-cell: 0;
     callback calendar-popup-show();
     callback calendar-popup-close();
 
@@ -494,8 +493,9 @@ export component CalendarPopupTestWindow inherits Window {
         current-year: 2026;
         current-month: 11;
         current-day: 8;
-        focused-cell: root.calendar-set-focused-cell;
-        popup-show => { root.calendar-popup-show(); }
-        popup-close => { root.calendar-popup-close(); }
+        focused-cell <=> root.calendar-set-focused-cell;
     }
+
+    calendar-popup-show => { calendar.popup-show(); }
+    calendar-popup-close => { calendar.popup-close(); }
 }

@@ -216,16 +216,17 @@ export component GalleryTab inherits VerticalLayout {
                         }
 
                         // Seta do sentido atual: para baixo = decrescente, para cima = crescente
-                        Path {
-                            width: 10px;
-                            height: 6px;
-                            vertical-stretch: 0;
-                            viewbox-width: 10;
-                            viewbox-height: 6;
-                            commands: root.sort-order == "desc" ? "M 1 1 L 5 5 L 9 1" : "M 1 5 L 5 1 L 9 5";
-                            stroke: Theme.accent;
-                            stroke-width: 2px;
-                            fill: transparent;
+                        VerticalLayout { height: 28px; alignment: center; spacing: 0;
+                            Path {
+                                width: 10px;
+                                height: 6px;
+                                viewbox-width: 10;
+                                viewbox-height: 6;
+                                commands: root.sort-order == "desc" ? "M 1 1 L 5 5 L 9 1" : "M 1 5 L 5 1 L 9 5";
+                                stroke: Theme.accent;
+                                stroke-width: 2px;
+                                fill: transparent;
+                            }
                         }
                     }
                 }

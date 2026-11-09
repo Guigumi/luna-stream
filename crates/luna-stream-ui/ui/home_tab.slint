@@ -24,10 +24,6 @@ export component HomeTab inherits VerticalLayout {
     in-out property <bool> capturing-record: false;
 
     in-out property <[UiMediaItem]> recent-items: [];
-    in property <length> available-width: 720px;
-    property <int> usable-grid-width: (root.available-width - 64px) / 1px;
-    property <int> visible-cols: Math.clamp(Math.floor((usable-grid-width + 14) / 234), 3, 6);
-
     callback toggle-replay();
     callback save-clip();
     callback toggle-record();
@@ -332,11 +328,9 @@ export component HomeTab inherits VerticalLayout {
                     spacing: 14px;
                     alignment: start;
 
-                    for idx in Math.min(root.recent-items.length, root.visible-cols) : Rectangle {
+                    for idx in root.recent-items.length : Rectangle {
                         property <UiMediaItem> item: root.recent-items[idx];
-                        horizontal-stretch: 1;
-                        min-width: 150px;
-                        max-width: 220px;
+                        width: 220px;
                         height: 185px;
                         background: Theme.surface-elevated;
                         border-radius: 6px;

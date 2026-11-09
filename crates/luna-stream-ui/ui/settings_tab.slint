@@ -2,7 +2,6 @@ import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton, FlatFilterChip,
 import { UiDeviceOption } from "types.slint";
 
 export component SettingsTab inherits Flickable {
-    content-height: 840px;
 
     in-out property <int> pref-replay-duration-secs: 30;
     in-out property <int> pref-bitrate-kbps: 12000;
@@ -51,7 +50,7 @@ export component SettingsTab inherits Flickable {
 
         // Bloco 1: Vídeo e Codificação
         LunaCard {
-            max-width: 860px;
+
             VerticalLayout {
                 padding: 16px;
                 spacing: 14px;
@@ -238,7 +237,7 @@ export component SettingsTab inherits Flickable {
 
         // Bloco 2: Áudio
         LunaCard {
-            max-width: 860px;
+
             VerticalLayout {
                 padding: 16px;
                 spacing: 14px;
@@ -379,7 +378,7 @@ export component SettingsTab inherits Flickable {
 
         // Bloco 3: Atalhos Globais de Teclado
         LunaCard {
-            max-width: 860px;
+
             VerticalLayout {
                 padding: 16px;
                 spacing: 14px;
@@ -493,7 +492,7 @@ export component SettingsTab inherits Flickable {
 
         // Bloco 4: Opções Gerais e Comportamento
         LunaCard {
-            max-width: 860px;
+
             VerticalLayout {
                 padding: 16px;
                 spacing: 14px;
@@ -588,7 +587,7 @@ export component SettingsTab inherits Flickable {
 
         // Rodapé de Atribuição da Licença Royalty-Free Slint 2.0 (ADR-0003)
         HorizontalLayout {
-            max-width: 860px;
+
             alignment: space-between;
             padding-top: 8px;
             padding-bottom: 8px;
