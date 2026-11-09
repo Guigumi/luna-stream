@@ -1,4 +1,4 @@
-import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton, FlatFilterChip, NumericStepper } from "theme.slint";
+import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton, FlatFilterChip, FlatSelect, NumericStepper } from "theme.slint";
 import { UiDeviceOption } from "types.slint";
 
 export component SettingsTab inherits Flickable {
@@ -13,8 +13,12 @@ export component SettingsTab inherits Flickable {
     in-out property <bool> pref-audio-mic: true;
     in-out property <string> pref-output-device: "";
     in-out property <string> pref-mic-device: "";
+    in-out property <int> pref-output-device-index: 0;
+    in-out property <int> pref-mic-device-index: 0;
     in-out property <[UiDeviceOption]> audio-outputs: [];
     in-out property <[UiDeviceOption]> audio-inputs: [];
+    in-out property <[string]> audio-output-labels: [];
+    in-out property <[string]> audio-input-labels: [];
     in-out property <string> pref-replay-hotkey: "Alt + F8";
     in-out property <string> pref-record-hotkey: "Alt + F9";
     in-out property <bool> capturing-replay: false;
@@ -173,39 +177,20 @@ export component SettingsTab inherits Flickable {
                             font-size: 11px;
                         }
                     }
-                    HorizontalLayout {
-                        spacing: 6px;
-                        FlatFilterChip {
-                            text: "Nativa";
-                            selected: root.pref-resolution == "native";
-                            clicked => {
-                                root.pref-resolution = "native";
-                                root.preferences-changed();
-                            }
-                        }
-                        FlatFilterChip {
-                            text: "1440p";
-                            selected: root.pref-resolution == "1440p";
-                            clicked => {
-                                root.pref-resolution = "1440p";
-                                root.preferences-changed();
-                            }
-                        }
-                        FlatFilterChip {
-                            text: "1080p";
-                            selected: root.pref-resolution == "1080p";
-                            clicked => {
-                                root.pref-resolution = "1080p";
-                                root.preferences-changed();
-                            }
-                        }
-                        FlatFilterChip {
-                            text: "720p";
-                            selected: root.pref-resolution == "720p";
-                            clicked => {
-                                root.pref-resolution = "720p";
-                                root.preferences-changed();
-                            }
+                    FlatSelect {
+                        width: 150px;
+                        accessible-label: "Resolução";
+                        options: ["Nativa", "1440p", "1080p", "720p"];
+                        selected-index: root.pref-resolution == "1440p" ? 1
+                                      : root.pref-resolution == "1080p" ? 2
+                                      : root.pref-resolution == "720p" ? 3
+                                      : 0;
+                        selected(index) => {
+                            root.pref-resolution = index == 1 ? "1440p"
+                                                : index == 2 ? "1080p"
+                                                : index == 3 ? "720p"
+                                                : "native";
+                            root.preferences-changed();
                         }
                     }
                 }
@@ -327,16 +312,17 @@ export component SettingsTab inherits Flickable {
                             font-size: 11px;
                         }
                     }
-                    FlatFilterChip {
+                    FlatButton {
                         text: root.pref-audio-profile == "game_only"
                             ? "Bloqueado"
-                            : (root.pref-audio-mic ? "Ativado" : "Desativado");
-                        selected: root.pref-audio-profile != "game_only" && root.pref-audio-mic;
+                            : (root.pref-audio-mic ? "Desativar microfone" : "Ativar microfone");
+                        primary: root.pref-audio-profile != "game_only" && !root.pref-audio-mic;
+                        danger: root.pref-audio-profile != "game_only" && root.pref-audio-mic;
+                        disabled: root.pref-audio-profile == "game_only";
+                        custom-height: 32px;
                         clicked => {
-                            if (root.pref-audio-profile != "game_only") {
-                                root.pref-audio-mic = !root.pref-audio-mic;
-                                root.preferences-changed();
-                            }
+                            root.pref-audio-mic = !root.pref-audio-mic;
+                            root.preferences-changed();
                         }
                     }
                 }
@@ -350,23 +336,17 @@ export component SettingsTab inherits Flickable {
                         font-size: 13px;
                         font-weight: 600;
                     }
-                    HorizontalLayout {
-                        spacing: 6px;
-                        FlatFilterChip {
-                            text: "Padrão do Sistema";
-                            selected: root.pref-output-device == "";
-                            clicked => {
-                                root.pref-output-device = "";
-                                root.preferences-changed();
-                            }
-                        }
-                        for dev in root.audio-outputs : FlatFilterChip {
-                            text: dev.label;
-                            selected: root.pref-output-device == dev.id;
-                            clicked => {
-                                root.pref-output-device = dev.id;
-                                root.preferences-changed();
-                            }
+                    FlatSelect {
+                        width: 300px;
+                        accessible-label: "Dispositivo de saída";
+                        options: root.audio-output-labels;
+                        has-all-option: true;
+                        all-label: "Padrão do Sistema";
+                        selected-index: root.pref-output-device-index;
+                        selected(index) => {
+                            root.pref-output-device-index = index;
+                            root.pref-output-device = index == 0 ? "" : root.audio-outputs[index - 1].id;
+                            root.preferences-changed();
                         }
                     }
                 }
@@ -380,23 +360,17 @@ export component SettingsTab inherits Flickable {
                         font-size: 13px;
                         font-weight: 600;
                     }
-                    HorizontalLayout {
-                        spacing: 6px;
-                        FlatFilterChip {
-                            text: "Padrão do Sistema";
-                            selected: root.pref-mic-device == "";
-                            clicked => {
-                                root.pref-mic-device = "";
-                                root.preferences-changed();
-                            }
-                        }
-                        for dev in root.audio-inputs : FlatFilterChip {
-                            text: dev.label;
-                            selected: root.pref-mic-device == dev.id;
-                            clicked => {
-                                root.pref-mic-device = dev.id;
-                                root.preferences-changed();
-                            }
+                    FlatSelect {
+                        width: 300px;
+                        accessible-label: "Dispositivo de microfone";
+                        options: root.audio-input-labels;
+                        has-all-option: true;
+                        all-label: "Padrão do Sistema";
+                        selected-index: root.pref-mic-device-index;
+                        selected(index) => {
+                            root.pref-mic-device-index = index;
+                            root.pref-mic-device = index == 0 ? "" : root.audio-inputs[index - 1].id;
+                            root.preferences-changed();
                         }
                     }
                 }

@@ -1,5 +1,5 @@
 import { ListView } from "std-widgets.slint";
-import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton, FlatFilterChip } from "theme.slint";
+import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton, FlatFilterChip, FlatSelect } from "theme.slint";
 import { UiMediaItem } from "types.slint";
 
 export component GalleryTab inherits VerticalLayout {
@@ -12,7 +12,14 @@ export component GalleryTab inherits VerticalLayout {
     in-out property <string> filter-kind: "all"; // all, clip, recording
     in-out property <string> filter-format: "all"; // all, mp4, mkv
     in-out property <string> filter-year: "all";
+    in-out property <string> filter-month: "all";
+    in-out property <string> filter-day: "all";
+    in-out property <int> filter-year-index: 0;
+    in-out property <int> filter-month-index: 0;
+    in-out property <int> filter-day-index: 0;
     in-out property <[string]> facet-years: [];
+    property <[string]> month-options: ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+    property <[string]> day-options: ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"];
     in-out property <string> sort-field: "recent"; // recent, size, duration
     in-out property <string> sort-order: "desc"; // desc, asc
 
@@ -121,32 +128,58 @@ export component GalleryTab inherits VerticalLayout {
                 }
             }
 
-            // Linha 2: Filtro por Ano (se houver facetas)
-            if root.facet-years.length > 0 : HorizontalLayout {
+            // Linha 2: Filtro por data específica (ano, mês, dia)
+            HorizontalLayout {
                 spacing: 8px;
                 alignment: start;
 
                 Text {
-                    text: "Ano:";
+                    text: "Data:";
                     color: Theme.text-secondary;
                     font-size: 11px;
                     font-weight: 600;
                     vertical-alignment: center;
                 }
-                FlatFilterChip {
-                    text: "Todos";
-                    selected: root.filter-year == "all";
-                    clicked => {
-                        root.filter-year = "all";
-                        root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
+
+                FlatSelect {
+                    width: 130px;
+                    accessible-label: "Ano da captura";
+                    options: root.facet-years;
+                    has-all-option: true;
+                    all-label: "Todos os anos";
+                    selected-index: root.filter-year-index;
+                    selected(index) => {
+                        root.filter-year-index = index;
+                        root.filter-year = index == 0 ? "all" : root.facet-years[index - 1];
+                        root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, root.filter-month, root.filter-day);
                     }
                 }
-                for yr in root.facet-years : FlatFilterChip {
-                    text: yr;
-                    selected: root.filter-year == yr;
-                    clicked => {
-                        root.filter-year = yr;
-                        root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, "all", "all");
+
+                FlatSelect {
+                    width: 120px;
+                    accessible-label: "Mês da captura";
+                    options: root.month-options;
+                    has-all-option: true;
+                    all-label: "Todos os meses";
+                    selected-index: root.filter-month-index;
+                    selected(index) => {
+                        root.filter-month-index = index;
+                        root.filter-month = index == 0 ? "all" : root.month-options[index - 1];
+                        root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, root.filter-month, root.filter-day);
+                    }
+                }
+
+                FlatSelect {
+                    width: 110px;
+                    accessible-label: "Dia da captura";
+                    options: root.day-options;
+                    has-all-option: true;
+                    all-label: "Todos os dias";
+                    selected-index: root.filter-day-index;
+                    selected(index) => {
+                        root.filter-day-index = index;
+                        root.filter-day = index == 0 ? "all" : root.day-options[index - 1];
+                        root.filter-changed(root.filter-kind, root.filter-format, root.filter-year, root.filter-month, root.filter-day);
                     }
                 }
             }
@@ -190,16 +223,50 @@ export component GalleryTab inherits VerticalLayout {
 
                 Rectangle { width: 8px; }
 
-                FlatFilterChip {
-                    text: root.sort-order == "desc" ? "Decrescente" : "Crescente";
-                    selected: true;
-                    clicked => {
-                        if (root.sort-order == "desc") {
-                            root.sort-order = "asc";
-                        } else {
-                            root.sort-order = "desc";
+                Rectangle {
+                    height: 28px;
+                    width: order-content.preferred-width;
+                    border-radius: 6px;
+                    border-width: 1px;
+                    border-color: order-touch.has-hover ? Theme.border-active : Theme.border;
+                    background: order-touch.has-hover ? Theme.surface-elevated : Theme.surface;
+                    accessible-role: button;
+                    accessible-label: root.sort-order == "desc" ? "Ordem decrescente" : "Ordem crescente";
+
+                    order-touch := TouchArea {
+                        clicked => {
+                            root.sort-order = root.sort-order == "desc" ? "asc" : "desc";
+                            root.sort-changed(root.sort-field, root.sort-order);
                         }
-                        root.sort-changed(root.sort-field, root.sort-order);
+                        mouse-cursor: pointer;
+                    }
+
+                    order-content := HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 6px;
+                        alignment: center;
+
+                        Text {
+                            text: root.sort-order == "desc" ? "Decrescente" : "Crescente";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+
+                        // Seta do sentido atual: para baixo = decrescente, para cima = crescente
+                        Path {
+                            width: 10px;
+                            height: 6px;
+                            vertical-stretch: 0;
+                            viewbox-width: 10;
+                            viewbox-height: 6;
+                            commands: root.sort-order == "desc" ? "M 1 1 L 5 5 L 9 1" : "M 1 5 L 5 1 L 9 5";
+                            stroke: Theme.accent;
+                            stroke-width: 2px;
+                            fill: transparent;
+                        }
                     }
                 }
             }

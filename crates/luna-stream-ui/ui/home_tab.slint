@@ -322,18 +322,26 @@ export component HomeTab inherits VerticalLayout {
                 }
             }
 
-            if root.recent-items.length > 0 : HorizontalLayout {
-                spacing: 14px;
-                alignment: start;
+            if root.recent-items.length > 0 : Flickable {
+                horizontal-stretch: 1;
+                height: 185px;
+                content-width: recent-items-layout.preferred-width;
+                content-height: 185px;
 
-                for idx in Math.min(root.recent-items.length, root.visible-cols) : Rectangle {
-                    property <UiMediaItem> item: root.recent-items[idx];
-                    width: 220px;
-                    height: 185px;
-                    background: Theme.surface-elevated;
-                    border-radius: 6px;
-                    border-width: 1px;
-                    border-color: recent-touch.has-hover ? Theme.border-active : Theme.border;
+                recent-items-layout := HorizontalLayout {
+                    spacing: 14px;
+                    alignment: start;
+
+                    for idx in Math.min(root.recent-items.length, root.visible-cols) : Rectangle {
+                        property <UiMediaItem> item: root.recent-items[idx];
+                        horizontal-stretch: 1;
+                        min-width: 150px;
+                        max-width: 220px;
+                        height: 185px;
+                        background: Theme.surface-elevated;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: recent-touch.has-hover ? Theme.border-active : Theme.border;
 
                     recent-touch := TouchArea {
                         clicked => { root.open-media(item.path); }
@@ -424,6 +432,7 @@ export component HomeTab inherits VerticalLayout {
                         }
                     }
                 }
+            }
             }
         }
     }
