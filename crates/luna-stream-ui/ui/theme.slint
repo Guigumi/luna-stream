@@ -197,7 +197,6 @@ component SelectRow inherits Rectangle {
 
 export component FlatSelect inherits Rectangle {
     in property <[string]> options: [];
-    // Primeira entrada fixa com valor vazio: "Todos os anos", "Padrão do Sistema"...
     in property <bool> has-all-option: false;
     in property <string> all-label: "Todos";
     in property <string> placeholder: "Selecionar";
@@ -261,7 +260,6 @@ export component FlatSelect inherits Rectangle {
             overflow: elide;
         }
 
-        // Seta (ícone vetorial, sem caracteres)
         Path {
             width: 10px;
             height: 6px;
@@ -332,6 +330,382 @@ export component FlatSelect inherits Rectangle {
     }
 }
 
+// Dia do calendário (componente interno)
+component CalendarDay inherits Rectangle {
+    in property <string> date: "";
+    in property <int> day-number: 1;
+    in property <bool> current-month: true;
+    in property <bool> is-today: false;
+    in property <bool> selected: false;
+    callback clicked();
+
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    background: root.selected ? Theme.accent :
+                root.is-today ? Theme.accent-muted :
+                touch.has-hover ? Theme.surface-hover : transparent;
+    border-width: root.is-today && !root.selected ? 1px : 0px;
+    border-color: Theme.accent;
+
+    touch := TouchArea {
+        enabled: root.current-month;
+        clicked => { root.clicked(); }
+        mouse-cursor: root.current-month ? pointer : default;
+    }
+
+    Text {
+        text: root.day-number == 0 ? "" : "{root.day-number}";
+        color: root.selected ? #FFFFFF :
+               root.is-today ? Theme.accent-hover :
+               root.current-month ? Theme.text-primary : Theme.text-muted;
+        font-size: 12px;
+        font-weight: root.is-today || root.selected ? 700 : 400;
+        vertical-alignment: center;
+        horizontal-alignment: center;
+    }
+}
+
+// Cabeçalho do mês com navegação
+component CalendarMonthHeader inherits Rectangle {
+    in property <int> year: 2026;
+    in property <int> month: 11;
+    callback prev-month();
+    callback next-month();
+
+    property <string> month-name: [
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ][root.month - 1];
+
+    height: 40px;
+    background: transparent;
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        spacing: 8px;
+        alignment: space-between;
+
+        Rectangle {
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            background: prev-touch.has-hover ? Theme.surface-hover : transparent;
+            border-width: 1px;
+            border-color: prev-touch.has-hover ? Theme.border-active : transparent;
+
+            prev-touch := TouchArea {
+                clicked => { root.prev-month(); }
+                mouse-cursor: pointer;
+            }
+            HorizontalLayout { alignment: center;
+                Path {
+                    width: 10px; height: 6px; viewbox-width: 10; viewbox-height: 6;
+                    commands: "M 9 1 L 5 5 L 9 9";
+                    stroke: Theme.text-secondary; stroke-width: 2px; fill: transparent;
+                }
+            }
+        }
+
+        Text {
+            horizontal-stretch: 1;
+            text: "{root.month-name} {root.year}";
+            color: Theme.text-primary;
+            font-size: 13px;
+            font-weight: 600;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+
+        Rectangle {
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            background: next-touch.has-hover ? Theme.surface-hover : transparent;
+            border-width: 1px;
+            border-color: next-touch.has-hover ? Theme.border-active : transparent;
+
+            next-touch := TouchArea {
+                clicked => { root.next-month(); }
+                mouse-cursor: pointer;
+            }
+            HorizontalLayout { alignment: center;
+                Path {
+                    width: 10px; height: 6px; viewbox-width: 10; viewbox-height: 6;
+                    commands: "M 1 1 L 5 5 L 1 9";
+                    stroke: Theme.text-secondary; stroke-width: 2px; fill: transparent;
+                }
+            }
+        }
+    }
+}
+
+// Rodapé com botões Hoje/Limpar
+component CalendarFooter inherits Rectangle {
+    in property <bool> show-today-button: true;
+    in property <bool> show-clear-button: true;
+    callback today-clicked();
+    callback clear-clicked();
+
+    height: 44px;
+    background: transparent;
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        spacing: 8px;
+        alignment: end;
+
+        if root.show-today-button : Rectangle {
+            width: 72px;
+            height: 28px;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: today-touch.has-hover ? Theme.border-active : Theme.border;
+            background: today-touch.has-hover ? Theme.surface-elevated : Theme.surface;
+
+            today-touch := TouchArea {
+                clicked => { root.today-clicked(); }
+                mouse-cursor: pointer;
+            }
+            HorizontalLayout { alignment: center;
+                Text {
+                    text: "Hoje";
+                    color: Theme.text-primary;
+                    font-size: 11px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        if root.show-clear-button : Rectangle {
+            width: 72px;
+            height: 28px;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: clear-touch.has-hover ? Theme.border-active : Theme.border;
+            background: clear-touch.has-hover ? Theme.surface-elevated : Theme.surface;
+
+            clear-touch := TouchArea {
+                clicked => { root.clear-clicked(); }
+                mouse-cursor: pointer;
+            }
+            HorizontalLayout { alignment: center;
+                Text {
+                    text: "Limpar";
+                    color: Theme.text-secondary;
+                    font-size: 11px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}
+
+export component CalendarPopup inherits Rectangle {
+    in-out property <string> selected-date: "";
+    in property <bool> show-today-button: true;
+    in property <bool> show-clear-button: true;
+    in property <int> current-year: 2026;
+    in property <int> current-month: 11;
+    in property <int> current-day: 8;
+    callback date-selected(string);
+
+    property <int> view-year: 2026;
+    property <int> view-month: 11;
+    property <string> selected-day: "";
+
+    property <[string]> weekday-labels: ["Do", "Se", "Te", "Qu", "Qu", "Se", "Sá"];
+
+    property <int> days-in-month: [
+        31,
+        (Math.mod(root.view-year, 4) == 0 && (Math.mod(root.view-year, 100) != 0 || Math.mod(root.view-year, 400) == 0)) ? 29 : 28,
+        31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+    ][root.view-month - 1];
+
+    property <int> first-weekday: {
+        let y = root.view-month <= 2 ? root.view-year - 1 : root.view-year;
+        let m = root.view-month <= 2 ? root.view-month + 12 : root.view-month;
+        let d = 1;
+        let k = Math.mod(y, 100);
+        let j = y / 100;
+        let h = Math.mod((d + (13 * (m + 1)) / 5 + k + k / 4 + j / 4 + 5 * j), 7);
+        Math.mod((h + 6), 7)
+    }
+
+    property <int> prev-month: root.view-month == 1 ? 12 : root.view-month - 1;
+    property <int> prev-year: root.view-month == 1 ? root.view-year - 1 : root.view-year;
+    property <int> prev-days: [
+        31,
+        (Math.mod(root.prev-year, 4) == 0 && (Math.mod(root.prev-year, 100) != 0 || Math.mod(root.prev-year, 400) == 0)) ? 29 : 28,
+        31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+    ][root.prev-month - 1];
+
+    property <int> next-month: root.view-month == 12 ? 1 : root.view-month + 1;
+    property <int> next-year: root.view-month == 12 ? root.view-year + 1 : root.view-year;
+
+    property <string> today-date: "{root.current-year}-{root.current-month:02d}-{root.current-day:02d}";
+
+    popup := PopupWindow {
+        x: 0;
+        y: root.height + 4px;
+        width: 280px;
+        close-policy: close-on-click-outside;
+
+        Rectangle {
+            background: Theme.surface-elevated;
+            border-width: 1px;
+            border-color: Theme.border-active;
+            border-radius: 8px;
+            clip: true;
+
+            VerticalLayout {
+                spacing: 0;
+
+                CalendarMonthHeader {
+                    year: root.view-year;
+                    month: root.view-month;
+                    prev-month => {
+                        root.view-month = root.view-month == 1 ? 12 : root.view-month - 1;
+                        root.view-year = root.view-month == 12 ? root.view-year - 1 : root.view-year;
+                    }
+                    next-month => {
+                        root.view-month = root.view-month == 12 ? 1 : root.view-month + 1;
+                        root.view-year = root.view-month == 1 ? root.view-year + 1 : root.view-year;
+                    }
+                }
+
+                Rectangle {
+                    height: 28px;
+                    background: transparent;
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        spacing: 0;
+                        for label in root.weekday-labels : Text {
+                            width: 36px;
+                            text: label;
+                            color: Theme.text-muted;
+                            font-size: 10px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    padding-bottom: 8px;
+                    spacing: 4px;
+
+                    for row in 6 : HorizontalLayout {
+                        spacing: 4px;
+                        for col in 7 : CalendarDay {
+                            property <int> cell-idx: row * 7 + col;
+                            property <bool> is-prev: cell-idx < root.first-weekday;
+                            property <bool> is-current: cell-idx >= root.first-weekday && cell-idx < root.first-weekday + root.days-in-month;
+                            property <bool> is-next: cell-idx >= root.first-weekday + root.days-in-month;
+                            property <int> day-prev: root.prev-days - root.first-weekday + cell-idx + 1;
+                            property <int> day-curr: cell-idx - root.first-weekday + 1;
+                            property <int> day-next: cell-idx - root.first-weekday - root.days-in-month + 1;
+                            property <string> cell-date: is-prev ? "{root.prev-year}-{root.prev-month:02d}-{day-prev:02d}"
+                                : is-current ? "{root.view-year}-{root.view-month:02d}-{day-curr:02d}"
+                                : "{root.next-year}-{root.next-month:02d}-{day-next:02d}";
+                            property <int> day-num: is-prev || is-next ? 0 : day-curr;
+                            property <bool> is-today-cell: cell-date == root.today-date;
+                            property <bool> is-selected: cell-date == root.selected-date || (root.selected-date == "" && cell-date == root.selected-day && root.selected-day != "");
+
+                            date: cell-date;
+                            day-number: day-num;
+                            current-month: is-current;
+                            is-today: is-today-cell;
+                            selected: is-selected;
+                            clicked => {
+                                root.selected-day = cell-date;
+                                root.date-selected(cell-date);
+                                root.selected-date = cell-date;
+                                popup.close();
+                            }
+                        }
+                    }
+                }
+
+                CalendarFooter {
+                    show-today-button: root.show-today-button;
+                    show-clear-button: root.show-clear-button;
+                    today-clicked => {
+                        root.date-selected(root.today-date);
+                        root.selected-date = root.today-date;
+                        root.view-year = root.current-year;
+                        root.view-month = root.current-month;
+                        popup.close();
+                    }
+                    clear-clicked => {
+                        root.date-selected("");
+                        root.selected-date = "";
+                        root.selected-day = "";
+                        popup.close();
+                    }
+                }
+            }
+        }
+    }
+
+    focus := FocusScope {
+        width: 100%;
+        height: 100%;
+
+        key-pressed(event) => {
+            if (event.text == "\u{1b}" && popup.is-open) {
+                popup.close();
+                return accept;
+            }
+            if (event.text == "\u{0d}" && popup.is-open && root.selected-day != "") {
+                root.date-selected(root.selected-day);
+                root.selected-date = root.selected-day;
+                popup.close();
+                return accept;
+            }
+            if (event.text == "\u{f704}" && popup.is-open) {
+                root.view-month = root.view-month == 1 ? 12 : root.view-month - 1;
+                root.view-year = root.view-month == 12 ? root.view-year - 1 : root.view-year;
+                root.selected-day = "{root.view-year}-{root.view-month:02d}-01";
+                return accept;
+            }
+            if (event.text == "\u{f705}" && popup.is-open) {
+                root.view-month = root.view-month == 12 ? 1 : root.view-month + 1;
+                root.view-year = root.view-month == 1 ? root.view-year + 1 : root.view-year;
+                root.selected-day = "{root.view-year}-{root.view-month:02d}-01";
+                return accept;
+            }
+            reject
+        }
+    }
+
+    trigger := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => {
+            if (popup.is-open) {
+                popup.close();
+            } else {
+                if (root.selected-date != "") {
+                    root.selected-day = root.selected-date;
+                } else {
+                    root.selected-day = "{root.view-year}-{root.view-month:02d}-01";
+                }
+                popup.show();
+            }
+        }
+        mouse-cursor: pointer;
+    }
+}
+
 export component NumericStepper inherits Rectangle {
     in property <int> value: 0;
     in property <int> min-value: 0;
@@ -351,7 +725,6 @@ export component NumericStepper inherits Rectangle {
         padding: 2px;
         spacing: 4px;
 
-        // Botão decrementar
         Rectangle {
             width: 32px;
             background: minus-touch.has-hover ? Theme.surface-elevated : transparent;
@@ -374,7 +747,6 @@ export component NumericStepper inherits Rectangle {
             }
         }
 
-        // Valor central
         HorizontalLayout {
             alignment: center;
             spacing: 4px;
@@ -393,7 +765,6 @@ export component NumericStepper inherits Rectangle {
             }
         }
 
-        // Botão incrementar
         Rectangle {
             width: 32px;
             background: plus-touch.has-hover ? Theme.surface-elevated : transparent;

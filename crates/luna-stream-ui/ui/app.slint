@@ -1,10 +1,10 @@
-import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton } from "theme.slint";
+import { Theme, LunaCard, PillBadge, FlatButton, FlatIconButton, CalendarPopup } from "theme.slint";
 import { UiMediaItem, UiDeviceOption } from "types.slint";
 import { HomeTab } from "home_tab.slint";
 import { GalleryTab } from "gallery_tab.slint";
 import { SettingsTab } from "settings_tab.slint";
 
-export { UiMediaItem, UiDeviceOption }
+export { UiMediaItem, UiDeviceOption, CalendarPopup }
 
 export component AppWindow inherits Window {
     title: "Luna Stream";
@@ -467,5 +467,26 @@ export component AppWindow inherits Window {
                 }
             }
         }
+    }
+}
+
+// Janela de teste para CalendarPopup (usada apenas em testes)
+export component CalendarPopupTestWindow inherits Window {
+    title: "CalendarPopup Test";
+    width: 300px;
+    height: 100px;
+    background: Theme.background;
+
+    in-out property <string> selected-date: "";
+    callback date-selected(string);
+
+    CalendarPopup {
+        x: 50px;
+        y: 20px;
+        selected-date: root.selected-date;
+        date-selected(date) => { root.date-selected(date); root.selected-date = date; }
+        current-year: 2026;
+        current-month: 11;
+        current-day: 8;
     }
 }
