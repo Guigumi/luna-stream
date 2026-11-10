@@ -31,7 +31,7 @@ export component GalleryTab inherits VerticalLayout {
             padding: 12px;
             spacing: 10px;
 
-            // Linha 1: Filtros de Tipo e Formato + Ações da pasta
+            // Linha 1: Filtros de Tipo e Formato
             HorizontalLayout {
                 spacing: 12px;
                 alignment: space-between;
@@ -107,6 +107,35 @@ export component GalleryTab inherits VerticalLayout {
                     }
                 }
 
+            }
+
+            // Linha 2: Data e ações da pasta
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+
+                    Text {
+                        text: "Data:";
+                        color: Theme.text-secondary;
+                        font-size: 11px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+
+                    CalendarPopup {
+                        width: 120px;
+                        selected-date: root.filter-date;
+                        date-selected(d) => {
+                            root.filter-date = d;
+                            root.filter-changed(root.filter-kind, root.filter-format, d);
+                        }
+                    }
+                }
+
                 HorizontalLayout {
                     spacing: 8px;
                     alignment: end;
@@ -117,29 +146,6 @@ export component GalleryTab inherits VerticalLayout {
                     FlatIconButton {
                         text: "Abrir Pasta";
                         clicked => { root.open-captures-dir(); }
-                    }
-                }
-            }
-
-            // Linha 2: Filtro por data específica (calendário)
-            HorizontalLayout {
-                spacing: 8px;
-                alignment: start;
-
-                Text {
-                    text: "Data:";
-                    color: Theme.text-secondary;
-                    font-size: 11px;
-                    font-weight: 600;
-                    vertical-alignment: center;
-                }
-
-                CalendarPopup {
-                    width: 120px;
-                    selected-date: root.filter-date;
-                    date-selected(d) => {
-                        root.filter-date = d;
-                        root.filter-changed(root.filter-kind, root.filter-format, d);
                     }
                 }
             }

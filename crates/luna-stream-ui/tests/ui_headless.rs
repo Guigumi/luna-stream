@@ -5,7 +5,7 @@ use luna_stream_ui::{
     should_start_hidden,
     supervisor::{UiCommand, UiSnapshot},
 };
-use slint::Model;
+use slint::{ComponentHandle, Model};
 use std::rc::Rc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -337,4 +337,66 @@ fn test_calendar_integration_filter_gallery() {
     });
     app.invoke_filter_changed("all".into(), "all".into(), "".into());
     assert!(filter_cleared.load(Ordering::SeqCst));
+}
+
+/// Regressão: a lista da galeria não pode ultrapassar a largura mínima da janela.
+#[test]
+fn test_gallery_list_fits_minimum_window_with_many_items() {
+    i_slint_backend_testing::init_no_event_loop();
+    let app = AppWindow::new().unwrap();
+
+    // Muitos itens mantêm um viewport rolável sem forçar largura extra.
+    let items: Vec<GalleryItem> = (0..60)
+        .map(|i| GalleryItem {
+            path: format!("/tmp/clip-{i}.mp4").into(),
+            file_name: format!("clip-{i}.mp4").into(),
+            kind: MediaKind::Clip,
+            format: "mp4".into(),
+            year: 2026,
+            month: 11,
+            day: 9,
+            date_label: "09/11/2026 10:00".into(),
+            size_bytes: 1024 * 1024,
+            size_label: "1 MB".into(),
+            duration_ms: 30000,
+            duration_label: "00:30".into(),
+            title: format!("Clip {i}").into(),
+            thumb_path: None,
+            probed: true,
+            sort_timestamp_ms: 1000 + i as u128,
+        })
+        .collect();
+
+    let snap = UiSnapshot {
+        gallery_items: items,
+        ..Default::default()
+    };
+    apply_snapshot_to_window(&app, &snap);
+    app.set_active_tab(1);
+    // O backend headless cria a janela em 800x600, abaixo do min-width (820px)
+    // declarado pela app. Usa o preferred-size real para medir o layout valido.
+    app.window().set_size(slint::LogicalSize::new(820.0, 620.0));
+
+    let mut list =
+        i_slint_backend_testing::ElementHandle::find_by_element_type_name(&app, "ListView");
+    let list = list.next().expect("ListView da galeria nao encontrado");
+
+    let list_size = list.size();
+    let list_pos = list.absolute_position();
+    let win = app.window().size();
+    let win_h = win.height as f32;
+    let win_w = win.width as f32;
+
+    assert!(
+        list_size.height <= win_h,
+        "a lista da galeria excede a altura da janela: {}px > {}px",
+        list_size.height,
+        win_h
+    );
+    assert!(
+        list_pos.x + list_size.width <= win_w + 1.0,
+        "a lista da galeria excede a largura da janela: {}px > {}px",
+        list_pos.x + list_size.width,
+        win_w
+    );
 }
