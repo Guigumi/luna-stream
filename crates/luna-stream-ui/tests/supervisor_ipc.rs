@@ -99,6 +99,15 @@ async fn supervisor_lifecycle_ipc_and_gallery_v2() {
                                     }
                                 })
                             }
+                            "replay.start" => {
+                                serde_json::json!({
+                                    "jsonrpc": "2.0",
+                                    "id": id,
+                                    "result": {
+                                        "hotkey_trigger": "ALT+F8"
+                                    }
+                                })
+                            }
                             "replay.status" => {
                                 serde_json::json!({
                                     "jsonrpc": "2.0",
@@ -141,6 +150,15 @@ async fn supervisor_lifecycle_ipc_and_gallery_v2() {
                                     "result": {
                                         "duration_ms": 25000,
                                         "thumb_written": true
+                                    }
+                                })
+                            }
+                            "replay.save" => {
+                                serde_json::json!({
+                                    "jsonrpc": "2.0",
+                                    "id": id,
+                                    "result": {
+                                        "path": "/tmp/Luna/Clips/Clip_2026-11-08_14-30-00_Valorant.mp4"
                                     }
                                 })
                             }
@@ -555,3 +573,5 @@ async fn test_supervisor_syncs_filter_date() {
     server_task.abort();
     sup_task.abort();
 }
+
+

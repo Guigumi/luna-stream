@@ -3,7 +3,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use luna_stream_proto::{
     AudioDeviceEntry, AudioDevicesResult, EncoderListResult, HotkeysConfigureResult,
@@ -218,6 +218,7 @@ pub async fn run_supervisor(
 
     let mut window_visible = true;
     let mut spawned_child: Option<Child> = None;
+    let mut last_clip_at: Option<Instant> = None;
     let current_exe = env::current_exe().ok();
 
     // Emite o snapshot inicial
@@ -304,6 +305,14 @@ pub async fn run_supervisor(
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
                     UiCommand::SaveClip => {
+                        // Cooldown de 1s entre clipes para evitar salvamentos em sequência rápida
+                        let now = Instant::now();
+                        if let Some(last) = last_clip_at {
+                            if now.duration_since(last) < Duration::from_secs(1) {
+                                break;
+                            }
+                        }
+
                         let mut overlay_event: Option<OverlayEvent> = None;
                         if snapshot.replay_active && !snapshot.saving_clip {
                             snapshot.saving_clip = true;
@@ -334,8 +343,12 @@ pub async fn run_supervisor(
                             snapshot.saving_clip = false;
                             (callbacks.on_snapshot)(snapshot.clone());
                         }
+                        let clip_saved = overlay_event.is_some();
                         if let Some(event) = overlay_event {
                             (callbacks.on_overlay)(event);
+                        }
+                        if clip_saved {
+                            last_clip_at = Some(now);
                         }
                     }
                     UiCommand::ToggleRecord => {

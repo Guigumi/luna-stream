@@ -1,12 +1,13 @@
 use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::time::Duration;
 
 use clap::Parser;
 use luna_stream_ui::config::UiPreferences;
 use luna_stream_ui::gallery::{GalleryFilter, GallerySortField, MediaKind, SortOrder};
 use luna_stream_ui::keybind;
-use luna_stream_ui::overlay::spawn_overlay_controller;
+use luna_stream_ui::overlay::{spawn_overlay_controller, OverlayKind};
 use luna_stream_ui::single_instance::{InstanceRole, UiIncomingEvent, acquire_or_notify};
 use luna_stream_ui::supervisor::{
     SupervisorCallbacks, SupervisorConfig, UiCommand, run_supervisor,
@@ -391,7 +392,9 @@ fn main() -> ExitCode {
     // Callbacks do Supervisor para a thread principal de UI
     let app_weak_for_snap = app.as_weak();
     let app_weak_for_show = app.as_weak();
+    let app_weak_for_overlay = app.as_weak();
     let overlay_sender_for_callback = overlay_sender.clone();
+    let runtime_handle = runtime.handle().clone();
 
     let callbacks = SupervisorCallbacks {
         on_snapshot: Box::new(move |snap| {
@@ -417,6 +420,40 @@ fn main() -> ExitCode {
             });
         }),
         on_overlay: Box::new(move |event| {
+            let kind = match event.kind {
+                OverlayKind::ReplayStarted => 0,
+                OverlayKind::ReplayStopped => 1,
+                OverlayKind::ClipSaved => 2,
+                OverlayKind::RecordStarted => 3,
+                OverlayKind::RecordStopped => 4,
+            };
+            let title = event.title.clone();
+            let subtitle = event.subtitle.clone();
+
+            // Exibe notificação HUD na janela Slint
+            let weak = app_weak_for_overlay.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(window) = weak.upgrade() {
+                    window.set_overlay_visible(true);
+                    window.set_overlay_title(title.as_str().into());
+                    window.set_overlay_subtitle(subtitle.as_str().into());
+                    window.set_overlay_kind(kind);
+                }
+            });
+
+            // Auto-fade: esconde o overlay após 3 segundos
+            let weak_fade = app_weak_for_overlay.clone();
+            let handle = runtime_handle.clone();
+            handle.spawn(async move {
+                tokio::time::sleep(Duration::from_secs(3)).await;
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(window) = weak_fade.upgrade() {
+                        window.set_overlay_visible(false);
+                    }
+                });
+            });
+
+            // Mantém envio ao stub do controller (compatibilidade futura com Wayland layer-shell)
             let _ = overlay_sender_for_callback.send(luna_stream_ui::overlay::OverlayCommand::Show(event));
         }),
     };
