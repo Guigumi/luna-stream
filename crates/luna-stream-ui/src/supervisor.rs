@@ -355,6 +355,14 @@ pub async fn run_supervisor(
                         }
                     }
                     UiCommand::OverlayEvent(event) => {
+                        // Cooldown de 1s entre clipes (evita duplo clique via atalho)
+                        let now = Instant::now();
+                        if let Some(last) = last_clip_at {
+                            if now.duration_since(last) < Duration::from_secs(1) {
+                                break;
+                            }
+                        }
+
                         // Overlay recebido via socket IPC (atalho global, outro processo, etc.)
                         // Exibe notificação HUD na UI
                         (callbacks.on_overlay)(event.clone());
@@ -368,6 +376,7 @@ pub async fn run_supervisor(
                             snapshot.facets = gallery_mgr.facets();
                             snapshot.error_banner.clear();
                             (callbacks.on_snapshot)(snapshot.clone());
+                            last_clip_at = Some(now);
                         }
                     }
                     UiCommand::ToggleRecord => {
