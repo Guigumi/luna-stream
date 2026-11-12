@@ -355,6 +355,10 @@ pub async fn run_supervisor(
                         }
                     }
                     UiCommand::OverlayEvent(event) => {
+                        eprintln!(
+                            "[OVERLAY] supervisor recebeu OverlayEvent: kind={:?}",
+                            event.kind
+                        );
                         // Cooldown de 1s entre clipes (evita duplo clique via atalho)
                         let now = Instant::now();
                         if let Some(last) = last_clip_at {

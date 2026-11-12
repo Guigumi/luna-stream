@@ -112,6 +112,7 @@ export component AppWindow inherits Window {
     callback preferences-changed();
     callback overlay-enabled-changed(bool);
     callback reset-default-hotkeys();
+    callback check-overlay();
     callback refresh-audio-devices();
     callback open-slint-website();
     callback start-capture-replay-hotkey();
@@ -189,6 +190,15 @@ export component AppWindow inherits Window {
                 text: root.overlay-subtitle;
                 color: rgb(160, 160, 160);
                 font-size: 11px;
+            }
+        }
+
+        // Timer que verifica periodicamente se há evento de overlay pendente
+        overlay-check-timer := Timer {
+            interval: 100ms;
+            triggered => {
+                root.check-overlay();
+                overlay-check-timer.start();
             }
         }
 

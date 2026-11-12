@@ -1,13 +1,15 @@
 use std::env;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use clap::Parser;
 use luna_stream_ui::config::UiPreferences;
 use luna_stream_ui::gallery::{GalleryFilter, GallerySortField, MediaKind, SortOrder};
 use luna_stream_ui::keybind;
-use luna_stream_ui::overlay::{spawn_overlay_controller, OverlayKind};
+use luna_stream_ui::overlay::{spawn_overlay_controller, OverlayEvent, OverlayKind};
 use luna_stream_ui::single_instance::{InstanceRole, UiIncomingEvent, acquire_or_notify};
 use luna_stream_ui::supervisor::{
     SupervisorCallbacks, SupervisorConfig, UiCommand, run_supervisor,
@@ -86,6 +88,10 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+
+    // Estado compartilhado do overlay entre a thread tokio (supervisor) e a thread Slint (UI)
+    let shared_overlay: Arc<Mutex<Option<OverlayEvent>>> = Arc::new(Mutex::new(None));
+    let shared_overlay_for_callback = shared_overlay.clone();
 
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
     let (tray_action_tx, mut tray_action_rx) = mpsc::unbounded_channel();
@@ -398,6 +404,58 @@ fn main() -> ExitCode {
     let overlay_sender_for_callback = overlay_sender.clone();
     let runtime_handle = runtime.handle().clone();
 
+    {
+        let shared = shared_overlay.clone();
+        let weak = app_weak_for_overlay.clone();
+        app.on_check_overlay(move || {
+            let event = {
+                let mut guard = shared.lock().unwrap();
+                guard.take()
+            };
+            if let Some(event) = event {
+                eprintln!(
+                    "[OVERLAY_TIMER] processando evento: kind={:?} title={}",
+                    event.kind, event.title
+                );
+                std::io::stderr().flush().ok();
+
+                let kind = match event.kind {
+                    OverlayKind::ReplayStarted => 0,
+                    OverlayKind::ReplayStopped => 1,
+                    OverlayKind::ClipSaved => 2,
+                    OverlayKind::RecordStarted => 3,
+                    OverlayKind::RecordStopped => 4,
+                };
+                let title = event.title.clone();
+                let subtitle = event.subtitle.clone();
+
+                if let Some(window) = weak.upgrade() {
+                    window.set_overlay_visible(true);
+                    window.set_overlay_title(title.as_str().into());
+                    window.set_overlay_subtitle(subtitle.as_str().into());
+                    window.set_overlay_kind(kind);
+                    eprintln!(
+                        "[OVERLAY_TIMER] overlay definido: visible={}",
+                        window.get_overlay_visible()
+                    );
+                    std::io::stderr().flush().ok();
+
+                    // Auto-fade: esconde após 3 segundos
+                    let weak_fade = weak.clone();
+                    let handle = runtime_handle.clone();
+                    handle.spawn(async move {
+                        tokio::time::sleep(Duration::from_secs(3)).await;
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(w) = weak_fade.upgrade() {
+                                w.set_overlay_visible(false);
+                            }
+                        });
+                    });
+                }
+            }
+        });
+    }
+
     let callbacks = SupervisorCallbacks {
         on_snapshot: Box::new(move |snap| {
             let weak = app_weak_for_snap.clone();
@@ -422,38 +480,19 @@ fn main() -> ExitCode {
             });
         }),
         on_overlay: Box::new(move |event| {
-            let kind = match event.kind {
-                OverlayKind::ReplayStarted => 0,
-                OverlayKind::ReplayStopped => 1,
-                OverlayKind::ClipSaved => 2,
-                OverlayKind::RecordStarted => 3,
-                OverlayKind::RecordStopped => 4,
-            };
-            let title = event.title.clone();
-            let subtitle = event.subtitle.clone();
+            eprintln!(
+                "[OVERLAY] evento recebido: kind={:?} title={}",
+                event.kind, event.title
+            );
+            std::io::stderr().flush().ok();
 
-            // Exibe notificação HUD na janela Slint
-            let weak = app_weak_for_overlay.clone();
-            let _ = slint::invoke_from_event_loop(move || {
-                if let Some(window) = weak.upgrade() {
-                    window.set_overlay_visible(true);
-                    window.set_overlay_title(title.as_str().into());
-                    window.set_overlay_subtitle(subtitle.as_str().into());
-                    window.set_overlay_kind(kind);
-                }
-            });
-
-            // Auto-fade: esconde o overlay após 3 segundos
-            let weak_fade = app_weak_for_overlay.clone();
-            let handle = runtime_handle.clone();
-            handle.spawn(async move {
-                tokio::time::sleep(Duration::from_secs(3)).await;
-                let _ = slint::invoke_from_event_loop(move || {
-                    if let Some(window) = weak_fade.upgrade() {
-                        window.set_overlay_visible(false);
-                    }
-                });
-            });
+            // Escreve no mutex compartilhado para a thread Slint processar
+            {
+                let mut guard = shared_overlay_for_callback.lock().unwrap();
+                *guard = Some(event.clone());
+            }
+            eprintln!("[OVERLAY] evento escrito no mutex compartilhado");
+            std::io::stderr().flush().ok();
 
             // Mantém envio ao stub do controller (compatibilidade futura com Wayland layer-shell)
             let _ = overlay_sender_for_callback.send(luna_stream_ui::overlay::OverlayCommand::Show(event));
