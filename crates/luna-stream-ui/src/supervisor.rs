@@ -53,6 +53,9 @@ pub enum UiCommand {
     DismissError,
     Quit,
 
+    // Evento de overlay recebido do socket IPC (atalho global, etc.)
+    OverlayEvent(crate::overlay::OverlayEvent),
+
     // Retrocompatibilidade
     OpenClip(PathBuf),
     OpenClipsDir,
@@ -349,6 +352,22 @@ pub async fn run_supervisor(
                         }
                         if clip_saved {
                             last_clip_at = Some(now);
+                        }
+                    }
+                    UiCommand::OverlayEvent(event) => {
+                        // Overlay recebido via socket IPC (atalho global, outro processo, etc.)
+                        // Exibe notificação HUD na UI
+                        (callbacks.on_overlay)(event.clone());
+                        // Se for clipe salvo, refresca galeria para o usuário ver o novo arquivo
+                        if event.kind == OverlayKind::ClipSaved {
+                            let _ = gallery_mgr.refresh();
+                            let file_name = event.subtitle.clone();
+                            snapshot.last_saved_label = format!("Salvo: {file_name}");
+                            snapshot.gallery_items = gallery_mgr.visible_items();
+                            snapshot.recent_items = gallery_mgr.recent_items(RECENT_ITEMS_CAPACITY);
+                            snapshot.facets = gallery_mgr.facets();
+                            snapshot.error_banner.clear();
+                            (callbacks.on_snapshot)(snapshot.clone());
                         }
                     }
                     UiCommand::ToggleRecord => {

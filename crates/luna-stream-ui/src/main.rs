@@ -111,7 +111,9 @@ fn main() -> ExitCode {
                     let _ = tx_for_incoming.send(UiCommand::ShowWindow);
                 }
                 UiIncomingEvent::Overlay(event) => {
-                    // Dispara overlay via socket IPC
+                    // Dispara overlay via supervisor (exibe notificação na UI + refresh da galeria se clipe)
+                    let _ = tx_for_incoming.send(UiCommand::OverlayEvent(event.clone()));
+                    // Mantém envio ao stub do controller (compatibilidade futura com Wayland layer-shell)
                     let _ = overlay_sender_for_socket.send(luna_stream_ui::overlay::OverlayCommand::Show(event));
                 }
             }
