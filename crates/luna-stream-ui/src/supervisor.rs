@@ -3,7 +3,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use luna_stream_proto::{
     AudioDeviceEntry, AudioDevicesResult, EncoderListResult, HotkeysConfigureResult,
@@ -54,6 +54,9 @@ pub enum UiCommand {
     OpenCapturesDir,
     DismissError,
     Quit,
+
+    // Evento de overlay recebido do socket IPC (atalho global, etc.)
+    OverlayEvent(crate::overlay::OverlayEvent),
 
     // Retrocompatibilidade
     OpenClip(PathBuf),
@@ -220,6 +223,7 @@ pub async fn run_supervisor(
 
     let mut window_visible = true;
     let mut spawned_child: Option<Child> = None;
+    let mut last_clip_at: Option<Instant> = None;
     let current_exe = env::current_exe().ok();
 
     // Emite o snapshot inicial
@@ -306,6 +310,14 @@ pub async fn run_supervisor(
                         (callbacks.on_snapshot)(snapshot.clone());
                     }
                     UiCommand::SaveClip => {
+                        // Cooldown de 1s entre clipes para evitar salvamentos em sequência rápida
+                        let now = Instant::now();
+                        if let Some(last) = last_clip_at {
+                            if now.duration_since(last) < Duration::from_secs(1) {
+                                break;
+                            }
+                        }
+
                         let mut overlay_event: Option<OverlayEvent> = None;
                         if snapshot.replay_active && !snapshot.saving_clip {
                             snapshot.saving_clip = true;
@@ -336,8 +348,41 @@ pub async fn run_supervisor(
                             snapshot.saving_clip = false;
                             (callbacks.on_snapshot)(snapshot.clone());
                         }
+                        let clip_saved = overlay_event.is_some();
                         if let Some(event) = overlay_event {
                             (callbacks.on_overlay)(event);
+                        }
+                        if clip_saved {
+                            last_clip_at = Some(now);
+                        }
+                    }
+                    UiCommand::OverlayEvent(event) => {
+                        eprintln!(
+                            "[OVERLAY] supervisor recebeu OverlayEvent: kind={:?}",
+                            event.kind
+                        );
+                        // Cooldown de 1s entre clipes (evita duplo clique via atalho)
+                        let now = Instant::now();
+                        if let Some(last) = last_clip_at {
+                            if now.duration_since(last) < Duration::from_secs(1) {
+                                break;
+                            }
+                        }
+
+                        // Overlay recebido via socket IPC (atalho global, outro processo, etc.)
+                        // Exibe notificação HUD na UI
+                        (callbacks.on_overlay)(event.clone());
+                        // Se for clipe salvo, refresca galeria para o usuário ver o novo arquivo
+                        if event.kind == OverlayKind::ClipSaved {
+                            let _ = gallery_mgr.refresh();
+                            let file_name = event.subtitle.clone();
+                            snapshot.last_saved_label = format!("Salvo: {file_name}");
+                            snapshot.gallery_items = gallery_mgr.visible_items();
+                            snapshot.recent_items = gallery_mgr.recent_items(RECENT_ITEMS_CAPACITY);
+                            snapshot.facets = gallery_mgr.facets();
+                            snapshot.error_banner.clear();
+                            (callbacks.on_snapshot)(snapshot.clone());
+                            last_clip_at = Some(now);
                         }
                     }
                     UiCommand::ToggleRecord => {

@@ -339,6 +339,34 @@ fn test_calendar_integration_filter_gallery() {
     assert!(filter_cleared.load(Ordering::SeqCst));
 }
 
+/// Valida que as propriedades do overlay HUD podem ser definidas e lidas na janela Slint.
+#[test]
+fn test_overlay_properties_and_visibility() {
+    i_slint_backend_testing::init_no_event_loop();
+    let app = AppWindow::new().unwrap();
+
+    // Estado inicial: overlay não visível, valores vazios
+    assert!(!app.get_overlay_visible());
+    assert_eq!(app.get_overlay_title().as_str(), "");
+    assert_eq!(app.get_overlay_subtitle().as_str(), "");
+    assert_eq!(app.get_overlay_kind(), 0);
+
+    // Define overlay visível (simulando evento ClipSaved recebido via on_overlay)
+    app.set_overlay_visible(true);
+    app.set_overlay_title("Clipe salvo".into());
+    app.set_overlay_subtitle("clipe_01.mp4".into());
+    app.set_overlay_kind(2); // ClipSaved
+
+    assert!(app.get_overlay_visible());
+    assert_eq!(app.get_overlay_title().as_str(), "Clipe salvo");
+    assert_eq!(app.get_overlay_subtitle().as_str(), "clipe_01.mp4");
+    assert_eq!(app.get_overlay_kind(), 2);
+
+    // Esconde o overlay (auto-fade após 3s)
+    app.set_overlay_visible(false);
+    assert!(!app.get_overlay_visible());
+}
+
 /// Regressão: a lista da galeria não pode ultrapassar a largura mínima da janela.
 #[test]
 fn test_gallery_list_fits_minimum_window_with_many_items() {

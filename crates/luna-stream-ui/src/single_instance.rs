@@ -4,6 +4,7 @@
 
 use std::fs;
 use std::io;
+use std::io::Write;
 use std::path::PathBuf;
 use tokio::sync::mpsc;
 use tokio::task::AbortHandle;
@@ -93,7 +94,12 @@ pub async fn acquire_or_notify(
                         let _ = tx.send(UiIncomingEvent::ShowWindow);
                     } else if let Some(json_str) = trimmed.strip_prefix("overlay:") {
                         if let Ok(event) = serde_json::from_str::<OverlayEvent>(json_str) {
+                            eprintln!("[OVERLAY_SOCKET] recebido: kind={:?} title={}", event.kind, event.title);
+                            std::io::stderr().flush().ok();
                             let _ = tx.send(UiIncomingEvent::Overlay(event));
+                        } else {
+                            eprintln!("[OVERLAY_SOCKET] falha ao parsear: {}", json_str);
+                            std::io::stderr().flush().ok();
                         }
                     }
                     line.clear();
