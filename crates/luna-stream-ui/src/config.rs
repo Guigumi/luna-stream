@@ -2,8 +2,10 @@
 
 use std::fs;
 use std::io;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 use luna_stream_proto::{
     AudioConfig, ContainerFormat, HotkeysConfigureParams, QualityPreset, RecordStartParams,
@@ -266,17 +268,23 @@ impl UiPreferences {
 
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
-            let mut parent_perms = fs::metadata(parent)?.permissions();
-            parent_perms.set_mode(0o700);
-            fs::set_permissions(parent, parent_perms)?;
+            #[cfg(unix)]
+            {
+                let mut parent_perms = fs::metadata(parent)?.permissions();
+                parent_perms.set_mode(0o700);
+                fs::set_permissions(parent, parent_perms)?;
+            }
         }
 
         let tmp_path = path.with_extension("tmp");
         fs::write(&tmp_path, json.as_bytes())?;
 
-        let mut file_perms = fs::metadata(&tmp_path)?.permissions();
-        file_perms.set_mode(0o600);
-        fs::set_permissions(&tmp_path, file_perms)?;
+        #[cfg(unix)]
+        {
+            let mut file_perms = fs::metadata(&tmp_path)?.permissions();
+            file_perms.set_mode(0o600);
+            fs::set_permissions(&tmp_path, file_perms)?;
+        }
 
         fs::rename(&tmp_path, path)?;
         Ok(())

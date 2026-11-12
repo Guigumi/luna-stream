@@ -1,7 +1,9 @@
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::PathBuf;
+
+#[cfg(unix)]
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
 pub struct TokenStore {
     dir: PathBuf,
@@ -46,9 +48,12 @@ impl TokenStore {
 
     pub fn save(&self, token: &str) -> io::Result<()> {
         fs::create_dir_all(&self.dir)?;
-        let mut perms = fs::metadata(&self.dir)?.permissions();
-        perms.set_mode(0o700);
-        fs::set_permissions(&self.dir, perms)?;
+        #[cfg(unix)]
+        {
+            let mut perms = fs::metadata(&self.dir)?.permissions();
+            perms.set_mode(0o700);
+            fs::set_permissions(&self.dir, perms)?;
+        }
 
         let target = self.file_path();
         let temp_path = self

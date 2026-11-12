@@ -11,7 +11,9 @@ use luna_stream_proto::{
     paths,
 };
 use luna_streamctl::client::{ClientError, call};
+#[cfg(unix)]
 use nix::sys::signal::{Signal, kill};
+#[cfg(unix)]
 use nix::unistd::Pid;
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
@@ -497,11 +499,17 @@ pub async fn run_supervisor(
                         // Não utilizado no modo confirmação dupla inline
                     }
                     UiCommand::OpenMedia(path) | UiCommand::OpenClip(path) => {
-                        let _ = Command::new("xdg-open").arg(path).spawn();
+                        #[cfg(unix)]
+                        {
+                            let _ = Command::new("xdg-open").arg(path).spawn();
+                        }
                     }
                     UiCommand::OpenCapturesDir | UiCommand::OpenClipsDir => {
                         let target = cfg.clips_dir.parent().unwrap_or(&cfg.clips_dir);
-                        let _ = Command::new("xdg-open").arg(target).spawn();
+                        #[cfg(unix)]
+                        {
+                            let _ = Command::new("xdg-open").arg(target).spawn();
+                        }
                     }
                     UiCommand::DismissError => {
                         snapshot.error_banner.clear();
@@ -522,7 +530,10 @@ pub async fn run_supervisor(
                         }
                         if let Some(mut child) = spawned_child.take() {
                             if let Some(pid) = child.id() {
-                                let _ = kill(Pid::from_raw(pid as i32), Signal::SIGTERM);
+                                #[cfg(unix)]
+                                {
+                                    let _ = kill(Pid::from_raw(pid as i32), Signal::SIGTERM);
+                                }
                             }
                             let _ = tokio::time::timeout(Duration::from_secs(1), child.wait()).await;
                         }

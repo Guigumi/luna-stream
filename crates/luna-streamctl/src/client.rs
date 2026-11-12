@@ -1,8 +1,6 @@
 use serde_json::Value;
 use std::path::Path;
 use thiserror::Error;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::UnixStream;
 
 use luna_stream_proto::{Request, Response};
 
@@ -18,7 +16,11 @@ pub enum ClientError {
     Json(#[from] serde_json::Error),
 }
 
+#[cfg(unix)]
 pub async fn call(socket_path: &Path, method: &str, params: Value) -> Result<Value, ClientError> {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::net::UnixStream;
+
     let stream = match UnixStream::connect(socket_path).await {
         Ok(s) => s,
         Err(_) => return Err(ClientError::NotRunning),
@@ -51,4 +53,9 @@ pub async fn call(socket_path: &Path, method: &str, params: Value) -> Result<Val
 
     resp.result
         .ok_or_else(|| ClientError::Rpc(-32603, "resposta sem resultado".to_string()))
+}
+
+#[cfg(windows)]
+pub async fn call(_socket_path: &Path, _method: &str, _params: Value) -> Result<Value, ClientError> {
+    Err(ClientError::NotRunning)
 }

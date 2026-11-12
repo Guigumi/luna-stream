@@ -9,6 +9,9 @@ use luna_stream_proto::{ContainerFormat, ErrorCode, RpcError};
 use crate::audio::filter::{StreamCategory, classify};
 use crate::audio::router::AudioGraph;
 
+#[cfg(unix)]
+use nix::sys::statvfs::statvfs;
+
 /// Mínimo de espaço livre em disco recomendado para iniciar gravação (1 GiB).
 pub const MIN_FREE_DISK_BYTES: u64 = 1024 * 1024 * 1024;
 
@@ -69,6 +72,7 @@ pub fn default_recordings_dir() -> PathBuf {
 }
 
 /// Verifica se há pelo menos `min_bytes` de espaço livre na partição onde o arquivo será gravado.
+#[cfg(unix)]
 pub fn check_free_space(path: &Path, min_bytes: u64) -> Result<(), ErrorCode> {
     let mut check_target = path.to_path_buf();
     while !check_target.exists() {
@@ -80,7 +84,7 @@ pub fn check_free_space(path: &Path, min_bytes: u64) -> Result<(), ErrorCode> {
     }
 
     let stat =
-        nix::sys::statvfs::statvfs(&check_target).map_err(|_| ErrorCode::OutputNotWritable)?;
+        statvfs(&check_target).map_err(|_| ErrorCode::OutputNotWritable)?;
 
     let fragment_size = stat.fragment_size() as u64;
     let available_blocks = stat.blocks_available() as u64;
@@ -91,6 +95,29 @@ pub fn check_free_space(path: &Path, min_bytes: u64) -> Result<(), ErrorCode> {
     }
 
     Ok(())
+}
+
+/// Verifica se há pelo menos `min_bytes` de espaço livre na partição onde o arquivo será gravado.
+#[cfg(windows)]
+pub fn check_free_space(path: &Path, min_bytes: u64) -> Result<(), ErrorCode> {
+    let mut check_target = path.to_path_buf();
+    while !check_target.exists() {
+        if let Some(parent) = check_target.parent() {
+            check_target = parent.to_path_buf();
+        } else {
+            break;
+        }
+    }
+
+    match std::fs::space(&check_target) {
+        Ok(space) => {
+            if space.free < min_bytes {
+                return Err(ErrorCode::OutputNotWritable);
+            }
+            Ok(())
+        }
+        Err(_) => Err(ErrorCode::OutputNotWritable),
+    }
 }
 
 /// Gera nome de arquivo com timestamp local: `YYYY-MM-DD_HH-MM-SS_<Game>.<ext>`

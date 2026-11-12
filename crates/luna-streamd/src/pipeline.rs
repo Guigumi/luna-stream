@@ -1,6 +1,7 @@
 use luna_stream_proto::{
     AudioConfig, ContainerFormat, EncoderInfo, QualityPreset, SystemAudioMode, VideoRecordConfig,
 };
+#[cfg(unix)]
 use std::os::fd::RawFd;
 use std::path::Path;
 
@@ -8,7 +9,10 @@ use crate::replay_buffer::TrackId;
 
 #[derive(Debug, Clone)]
 pub enum VideoSource {
+    #[cfg(unix)]
     PipeWire { fd: RawFd, node_id: u32 },
+    #[cfg(windows)]
+    PipeWire { handle: usize, node_id: u32 },
     Test,
 }
 
@@ -96,9 +100,16 @@ fn audio_track_appsink(
 fn video_source_part(video_src: &VideoSource) -> String {
     match video_src {
         VideoSource::Test => "videotestsrc is-live=true pattern=ball".to_string(),
+        #[cfg(unix)]
         VideoSource::PipeWire { fd, node_id } => {
             format!(
                 "pipewiresrc fd={fd} path={node_id} do-timestamp=true keepalive-time=1000 always-copy=false"
+            )
+        }
+        #[cfg(windows)]
+        VideoSource::PipeWire { handle: _, node_id } => {
+            format!(
+                "wgcsrc handle={node_id} do-timestamp=true keepalive-time=1000 always-copy=false"
             )
         }
     }

@@ -376,9 +376,12 @@ fn main() -> ExitCode {
     }
 
     app.on_open_slint_website(|| {
-        let _ = std::process::Command::new("xdg-open")
-            .arg("https://slint.dev")
-            .spawn();
+        #[cfg(unix)]
+        {
+            let _ = std::process::Command::new("xdg-open")
+                .arg("https://slint.dev")
+                .spawn();
+        }
     });
 
     // Trata pedido de fechamento da janela (X)

@@ -1,13 +1,15 @@
 use std::env;
 use std::sync::Arc;
-use tokio::signal::unix::{SignalKind, signal};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 use luna_streamd::handlers::Daemon;
 use luna_streamd::server::serve;
 use luna_streamd::socket::{bind, socket_path};
+
+#[cfg(unix)]
+use tokio::signal::unix::{SignalKind, signal};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,22 +43,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shutdown = CancellationToken::new();
 
     let shutdown_clone = shutdown.clone();
-    tokio::spawn(async move {
-        let mut sigterm =
-            signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
-        let mut sigint =
-            signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
+    #[cfg(unix)]
+    {
+        tokio::spawn(async move {
+            let mut sigterm =
+                signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
+            let mut sigint =
+                signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
 
-        tokio::select! {
-            _ = sigterm.recv() => {
-                info!("Sinal SIGTERM recebido, iniciando encerramento gracioso...");
+            tokio::select! {
+                _ = sigterm.recv() => {
+                    info!("Sinal SIGTERM recebido, iniciando encerramento gracioso...");
+                }
+                _ = sigint.recv() => {
+                    info!("Sinal SIGINT (Ctrl+C) recebido, iniciando encerramento gracioso...");
+                }
             }
-            _ = sigint.recv() => {
-                info!("Sinal SIGINT (Ctrl+C) recebido, iniciando encerramento gracioso...");
-            }
-        }
-        shutdown_clone.cancel();
-    });
+            shutdown_clone.cancel();
+        });
+    }
+    #[cfg(windows)]
+    {
+        let _ = shutdown_clone;
+        warn!("Sinais Unix não disponíveis no Windows. Use Ctrl+C para encerrar.");
+    }
 
     serve(listener, handler_dyn, shutdown).await?;
 

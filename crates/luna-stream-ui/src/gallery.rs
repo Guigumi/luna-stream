@@ -599,9 +599,12 @@ impl ClipManager {
     }
 
     pub fn open_clips_dir(&self) -> io::Result<()> {
-        let _ = std::process::Command::new("xdg-open")
-            .arg(&self.gallery.clips_dir)
-            .spawn();
+        #[cfg(unix)]
+        {
+            let _ = std::process::Command::new("xdg-open")
+                .arg(&self.gallery.clips_dir)
+                .spawn();
+        }
         Ok(())
     }
 

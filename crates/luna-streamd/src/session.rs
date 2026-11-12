@@ -9,6 +9,7 @@ use luna_stream_proto::{
     ReplayStartParams, ReplayStartResult, ReplayStatusResult, ReplayStopResult, RpcError,
     SourceKind, SystemAudioMode,
 };
+#[cfg(unix)]
 use std::os::fd::AsRawFd;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -178,16 +179,21 @@ impl SessionManager {
         params: RecordStartParams,
         token_store: &TokenStore,
     ) -> Result<RecordStartResult, RpcError> {
-        let dump_graph = if params.output.is_none() && params.game_name.is_none() {
-            tokio::process::Command::new("pw-dump")
-                .output()
-                .await
-                .ok()
-                .and_then(|o| String::from_utf8(o.stdout).ok())
-                .and_then(|s| AudioGraph::from_json(&s).ok())
-        } else {
-            None
+        let dump_graph = #[cfg(unix)]
+        {
+            if params.output.is_none() && params.game_name.is_none() {
+                tokio::process::Command::new("pw-dump")
+                    .output()
+                    .await
+                    .ok()
+                    .and_then(|o| String::from_utf8(o.stdout).ok())
+                    .and_then(|s| AudioGraph::from_json(&s).ok())
+            } else {
+                None
+            }
         };
+        #[cfg(windows)]
+        let dump_graph = None;
 
         let output_path = resolve_output_path(
             params.output.as_deref(),
@@ -236,17 +242,26 @@ impl SessionManager {
         let (video_src, portal_session, audio_src) = match params.source {
             SourceKind::Test => (VideoSource::Test, None, AudioSourceKind::Test),
             SourceKind::Screen => {
-                let portal = portal::open_screen(token_store).await?;
-                let raw_fd = portal.fd.as_raw_fd();
-                let node_id = portal.node_id;
-                (
-                    VideoSource::PipeWire {
-                        fd: raw_fd,
-                        node_id,
-                    },
-                    Some(portal),
-                    AudioSourceKind::PipeWire,
-                )
+                #[cfg(unix)]
+                let result = {
+                    let portal = portal::open_screen(token_store).await?;
+                    let raw_fd = portal.fd.as_raw_fd();
+                    let node_id = portal.node_id;
+                    Ok((
+                        VideoSource::PipeWire {
+                            fd: raw_fd,
+                            node_id,
+                        },
+                        Some(portal),
+                        AudioSourceKind::PipeWire,
+                    ))
+                };
+                #[cfg(windows)]
+                let result = Err(RpcError::new(
+                    ErrorCode::Internal as i32,
+                    "Captura de tela não implementada no Windows (marco W2)".to_string(),
+                ));
+                result?
             }
         };
 
@@ -512,17 +527,26 @@ impl SessionManager {
         let (video_src, portal_session, audio_src) = match params.source {
             SourceKind::Test => (VideoSource::Test, None, AudioSourceKind::Test),
             SourceKind::Screen => {
-                let portal = portal::open_screen(token_store).await?;
-                let raw_fd = portal.fd.as_raw_fd();
-                let node_id = portal.node_id;
-                (
-                    VideoSource::PipeWire {
-                        fd: raw_fd,
-                        node_id,
-                    },
-                    Some(portal),
-                    AudioSourceKind::PipeWire,
-                )
+                #[cfg(unix)]
+                let result = {
+                    let portal = portal::open_screen(token_store).await?;
+                    let raw_fd = portal.fd.as_raw_fd();
+                    let node_id = portal.node_id;
+                    Ok((
+                        VideoSource::PipeWire {
+                            fd: raw_fd,
+                            node_id,
+                        },
+                        Some(portal),
+                        AudioSourceKind::PipeWire,
+                    ))
+                };
+                #[cfg(windows)]
+                let result = Err(RpcError::new(
+                    ErrorCode::Internal as i32,
+                    "Captura de tela não implementada no Windows (marco W2)".to_string(),
+                ));
+                result?
             }
         };
 

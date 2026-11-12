@@ -1,15 +1,22 @@
-//! Controle de instância única via Unix socket ($XDG_RUNTIME_DIR/luna-stream/ui.sock).
+//! Controle de instância única via socket IPC.
+//! No Linux: Unix socket ($XDG_RUNTIME_DIR/luna-stream/ui.sock).
+//! No Windows: stub (marco W2 - Named Pipe/TCP).
 
 use std::fs;
 use std::io;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::mpsc;
 use tokio::task::AbortHandle;
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+#[cfg(unix)]
+use tokio::net::{UnixListener, UnixStream};
+
 use crate::overlay::OverlayEvent;
+use tracing::warn;
 
 /// Eventos recebidos via socket IPC da interface (`ui.sock`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,12 +29,15 @@ pub enum UiIncomingEvent {
 
 pub struct SingleInstanceGuard {
     sock_path: PathBuf,
-    abort_handle: AbortHandle,
+    #[allow(dead_code)]
+    abort_handle: Option<AbortHandle>,
 }
 
 impl Drop for SingleInstanceGuard {
     fn drop(&mut self) {
-        self.abort_handle.abort();
+        if let Some(h) = self.abort_handle.take() {
+            h.abort();
+        }
         let _ = fs::remove_file(&self.sock_path);
     }
 }
@@ -37,6 +47,7 @@ pub enum InstanceRole {
     SecondaryNotified,
 }
 
+#[cfg(unix)]
 pub async fn acquire_or_notify(
     sock_path: PathBuf,
     incoming_tx: mpsc::UnboundedSender<UiIncomingEvent>,
@@ -93,6 +104,18 @@ pub async fn acquire_or_notify(
 
     Ok(InstanceRole::Primary(SingleInstanceGuard {
         sock_path: path_clone,
-        abort_handle: task.abort_handle(),
+        abort_handle: Some(task.abort_handle()),
+    }))
+}
+
+#[cfg(windows)]
+pub async fn acquire_or_notify(
+    _sock_path: PathBuf,
+    _incoming_tx: mpsc::UnboundedSender<UiIncomingEvent>,
+) -> io::Result<InstanceRole> {
+    warn!("single_instance não implementado no Windows (marco W2).");
+    Ok(InstanceRole::Primary(SingleInstanceGuard {
+        sock_path: PathBuf::new(),
+        abort_handle: None,
     }))
 }
