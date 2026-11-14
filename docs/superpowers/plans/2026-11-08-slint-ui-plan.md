@@ -1,5 +1,7 @@
 # App Desktop Nativo e Bandeja do Sistema em Slint (`luna-stream-ui`) — Implementation Plan
 
+> **Status:** **supersedido** por `docs/superpowers/plans/2026-11-08-slint-ui-v2-plan.md`. Este plano descreve a implementação inicial (`clips.rs`, abas `control_tab`/`clips_tab`) que foi substituída pela Galeria unificada (`gallery.rs`) e pelas abas `home_tab`/`gallery_tab`/`settings_tab`. Mantenha apenas como referência histórica; para trabalhar, use o plano v2.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Construir o aplicativo desktop nativo e de bandeja do sistema `luna-stream` (`crates/luna-stream-ui`) em Rust com Slint (`LicenseRef-Slint-Royalty-free-2.0`) e `ksni`, controlando Replay Buffer, salvamento de clipes, gravação contínua, galeria local de clipes com *Desfazer* e preferências persistentes sem depender do Electron (`< 30 MB` RAM ocioso e `0 MB` VRAM por padrão).
@@ -301,12 +303,14 @@ git commit -m "feat(ui): inicializa crate luna-stream-ui e preferências persist
 
 ---
 
-### Task 3: Galeria de Clipes e Exclusão Diferida com *Desfazer* (`clips.rs`)
+### Task 3: Galeria de Clipes e Exclusão Diferida com *Desfazer* (`gallery.rs`)
+
+> *(Atualizado: `clips.rs` foi substituído por `gallery.rs` no plano v2; veja `docs/superpowers/plans/2026-11-08-slint-ui-v2-plan.md`.)*
 
 **Files:**
-- Create: `crates/luna-stream-ui/src/clips.rs`
+- Create: `crates/luna-stream-ui/src/gallery.rs`
 - Modify: `crates/luna-stream-ui/src/lib.rs`
-- Test: `crates/luna-stream-ui/tests/clips.rs`
+- Test: `crates/luna-stream-ui/tests/gallery.rs`
 
 **Interfaces:**
 - Produces in `luna_stream_ui::clips`:
@@ -665,8 +669,8 @@ git commit -m "feat(ui): implementa supervisor IPC com auto-spawn e polling adap
 
 **Files:**
 - Create: `crates/luna-stream-ui/ui/theme.slint`
-- Create: `crates/luna-stream-ui/ui/control_tab.slint`
-- Create: `crates/luna-stream-ui/ui/clips_tab.slint`
+- Create: `crates/luna-stream-ui/ui/home_tab.slint`
+- Create: `crates/luna-stream-ui/ui/gallery_tab.slint`
 - Create: `crates/luna-stream-ui/ui/settings_tab.slint`
 - Modify: `crates/luna-stream-ui/ui/app.slint`
 - Modify: `crates/luna-stream-ui/src/lib.rs`
