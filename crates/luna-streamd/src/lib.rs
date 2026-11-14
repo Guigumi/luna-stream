@@ -23,10 +23,18 @@ pub mod server;
 pub mod socket;
 
 #[cfg(windows)]
-pub mod hotkey_windows as hotkey;
+mod hotkey_windows;
 #[cfg(windows)]
-pub mod portal_windows as portal;
+pub use hotkey_windows as hotkey;
 #[cfg(windows)]
-pub mod server_windows as server;
+mod portal_windows;
 #[cfg(windows)]
-pub mod socket_windows as socket;
+pub use portal_windows as portal;
+#[cfg(windows)]
+mod server_windows;
+#[cfg(windows)]
+pub use server_windows as server;
+#[cfg(windows)]
+mod socket_windows;
+#[cfg(windows)]
+pub use socket_windows as socket;

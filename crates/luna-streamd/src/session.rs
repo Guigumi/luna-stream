@@ -179,8 +179,8 @@ impl SessionManager {
         params: RecordStartParams,
         token_store: &TokenStore,
     ) -> Result<RecordStartResult, RpcError> {
-        let dump_graph = #[cfg(unix)]
-        {
+#[cfg(unix)]
+        let dump_graph = {
             if params.output.is_none() && params.game_name.is_none() {
                 tokio::process::Command::new("pw-dump")
                     .output()
@@ -243,7 +243,7 @@ impl SessionManager {
             SourceKind::Test => (VideoSource::Test, None, AudioSourceKind::Test),
             SourceKind::Screen => {
                 #[cfg(unix)]
-                let result = {
+                let result: Result<(VideoSource, Option<PortalSession>, AudioSourceKind), RpcError> = {
                     let portal = portal::open_screen(token_store).await?;
                     let raw_fd = portal.fd.as_raw_fd();
                     let node_id = portal.node_id;
@@ -528,7 +528,7 @@ impl SessionManager {
             SourceKind::Test => (VideoSource::Test, None, AudioSourceKind::Test),
             SourceKind::Screen => {
                 #[cfg(unix)]
-                let result = {
+                let result: Result<(VideoSource, Option<PortalSession>, AudioSourceKind), RpcError> = {
                     let portal = portal::open_screen(token_store).await?;
                     let raw_fd = portal.fd.as_raw_fd();
                     let node_id = portal.node_id;
